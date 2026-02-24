@@ -1,0 +1,20 @@
+{
+  "name": "knotcoin-explorer",
+  "version": "1.0.0",
+  "description": "Real-time blockchain explorer for Knotcoin",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "knotcoin",
+    "blockchain",
+    "explorer"
+  ],
+  "author": "Knotcoin Developers",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.19.0"
+  }
+}

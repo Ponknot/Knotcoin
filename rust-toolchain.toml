@@ -1,0 +1,5 @@
+[toolchain]
+channel = "stable"
+# Rust 2024 edition (let-chains) requires >= 1.88.0
+# Update this only after verifying the full test suite passes.
+# https://doc.rust-lang.org/edition-guide/rust-2024/

@@ -1,0 +1,97 @@
+# Build output
+/target*
+dist/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor files
+.idea/
+.vscode/
+*.swp
+*~
+
+# Never commit these
+.env
+*.pem
+*.key
+wallet.dat
+*.dat
+config.local.toml
+
+# Logs — never commit logs that might contain IP addresses
+*.log
+logs/
+
+# Node modules (if any frontend tooling is ever added)
+node_modules/
+
+# Internal documentation (not for public repo)
+AUDIT_COMPLETE_*.md
+OPTIMIZATIONS_*.md
+share/explorer/README.md
+
+# Temporary analysis and verification files (internal use only)
+ACTUAL_IMPLEMENTATION_STATUS.md
+BACKEND_AUDIT_RESULTS.md
+CODE_QUALITY_BREAKDOWN.md
+CODE_QUALITY_CERTIFICATION.md
+COMPLETION_REPORT.md
+COMPREHENSIVE_SYSTEM_ANALYSIS.md
+CONTEXT_TRANSFER_COMPLETE.md
+EXACT_5_POINT_ISSUES.md
+EXPLORER_COMPLETION_CHECKLIST.md
+EXPLORER_V1.0_COMPLETE.md
+FINAL_ACCURATE_STATUS.md
+FINAL_ANSWER_REFERRAL_FOREVER.md
+FINAL_LOCK_READY_FOR_GENESIS.md
+FINAL_PRE_GENESIS_AUDIT.md
+FINAL_STATUS.md
+GENESIS_DEPLOYMENT_READY.txt
+GENESIS_LAUNCH_PLAN.md
+GOVERNANCE_CAP_ANALYSIS.md
+HYPOTHETICAL_LAUNCH_SCENARIO.md
+IMMUTABILITY_ANALYSIS.md
+IMMUTABLE_CONSENSUS_STRESS_TEST.md
+LIGHT_NODE_ANALYSIS.md
+LIVE_SIMULATION_GUIDE.md
+PHASE2_PROGRESS.md
+PRE_GENESIS_CHECKLIST.md
+PRE_GENESIS_FIXES.md
+PRE_GENESIS_IMPLEMENTATION_COMPLETE.md
+QUICK_START.md
+REFERRAL_TOKENOMICS_VERIFICATION.md
+RELEASE_NOTES_v1.0.md
+SECURITY_AUDIT_REFERRAL_GOVERNANCE.md
+SESSION_COMPLETE.md
+SESSION_SUMMARY.md
+SYSTEM_READY_FOR_GENESIS.md
+TEST_COVERAGE_COMPLETE.md
+YOUR_QUESTIONS_ANSWERED.md
+
+# Temporary test and verification scripts
+audit_code_quality.sh
+deep_code_audit.sh
+final_check.sh
+final_system_verification.sh
+final_verification_results.txt
+full_verification.txt
+quick_final_verification.sh
+quick_immutable_test.sh
+run_live_simulation.sh
+stress_test_immutable_consensus.sh
+stress_test_results.txt
+test_browser_compat.html
+test_explorer_e2e.sh
+test_referral_decay
+test_referral_decay.rs
+test_simulation.sh
+update_release.sh
+verification_results.txt
+verify_complete_system.sh
+verify_final.sh
+
+# Explorer internal docs
+share/explorer/PRODUCTION_READY.md

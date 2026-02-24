@@ -1,0 +1,67 @@
+[package]
+name        = "knotcoin"
+version     = "1.0.0"
+edition     = "2024"
+authors     = ["Knotcoin Developers"]
+description = "Quantum-resistant proof-of-work cryptocurrency — mainnet"
+license     = "MIT"
+
+# Rust 2024 edition requires stable toolchain >= 1.88.0 (let-chain syntax).
+# Pin in rust-toolchain.toml for reproducible builds.
+
+[[bin]]
+name = "knotcoind"
+path = "src/bin/knotcoind.rs"
+
+[[bin]]
+name = "knotcoin-cli"
+path = "src/bin/knotcoin_cli.rs"
+
+[dependencies]
+# Core
+colored       = "2.1.0"
+sled          = "0.34"
+serde         = { version = "1", features = ["derive"] }
+serde_json    = "1"
+hex           = "0.4"
+primitive-types = { version = "0.12", features = ["serde"] }
+sha2          = "0.10"
+sha3          = "0.10"
+hmac          = "0.12"
+pqcrypto-dilithium = "0.5"
+pqcrypto-traits    = "0.3"
+pbkdf2        = { version = "0.12", features = ["hmac"] }
+cxx           = "1"
+bincode       = "1"
+bs58          = "0.5"
+data-encoding = "2"
+rand          = "0.8"
+getrandom     = "0.2"
+thiserror     = "2"
+serde_bytes   = "0.11"
+argon2        = "0.5"
+aes-gcm       = "0.10"
+rand_chacha   = "0.3"
+rand_core     = "0.6"
+
+# Networking
+tokio         = { version = "1", features = ["full"] }
+hyper         = { version = "1", features = ["http1", "server"] }
+hyper-util    = { version = "0.1", features = ["tokio"] }
+rayon         = "1.10"
+http-body-util = "0.1"
+
+[build-dependencies]
+cxx-build = "1"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+opt-level = 3
+lto       = true
+codegen-units = 1
+
+[profile.dev]
+opt-level = 0
+debug     = true

@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knotcoin Explorer - Quantum-Resistant Blockchain</title>
+  <link rel="stylesheet" href="style.css?v=7.0">
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    /* Disable transitions for SVG elements to prevent lag */
+    svg, svg *, circle, line, text {
+      transition: none !important;
+    }
+    
+    /* Smooth dragging */
+    circle {
+      cursor: grab;
+    }
+    
+    circle:active {
+      cursor: grabbing;
+    }
+    
+    /* Active miner blinking animation */
+    @keyframes miner-pulse {
+      0%, 100% {
+        opacity: 1;
+        filter: drop-shadow(0 0 8px currentColor);
+      }
+      50% {
+        opacity: 0.6;
+        filter: drop-shadow(0 0 20px currentColor);
+      }
+    }
+    
+    .viz-active-miner {
+      animation: miner-pulse 2s ease-in-out infinite;
+    }
+    
+    /* Override topline CSS to prevent box-in-box */
+    #topline {
+      display: flex !important;
+      gap: 15px !important;
+      flex-wrap: wrap !important;
+      align-items: center !important;
+    }
+    
+    #topline span {
+      background: transparent !important;
+      border: none !important;
+      padding: 0 !important;
+      border-radius: 0 !important;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <div style="display: flex; align-items: baseline; gap: 12px;">
+        <pre id="logo" style="margin: 0; font-size: 20px; font-weight: 800;">KNOTCOIN</pre>
+        <span style="font-size: 11px; color: var(--accent); font-weight: 600;">World's First PoW + Referral Blockchain (PoNC)</span>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <input id="search-input" type="text" placeholder="height / hash / address" style="width: 280px; padding: 8px; background: var(--panel); color: var(--text); border: 2px solid var(--line); font-family: inherit; font-size: 13px; border-radius: 6px;">
+        <button id="search-btn" style="padding: 8px 16px; background: var(--accent); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">SEARCH</button>
+      </div>
+    </div>
+
+    <div id="topline" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; background: var(--panel); padding: 10px 12px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px;">
+      <span id="conn-status" class="status good">ONLINE</span>
+      <span style="color: var(--text);">HEIGHT: <span id="demo-height" style="font-weight: 700;">0</span></span>
+      <span style="color: var(--text);">HASHRATE: <span id="demo-hashrate" style="font-weight: 700;">0 H/s</span></span>
+      <span style="color: var(--text);">DIFF: <span id="demo-diff" style="font-weight: 700;">--</span></span>
+      <span style="color: var(--text);">REWARD: <span id="demo-reward" style="font-weight: 700;">--</span></span>
+      <span style="color: var(--text);">SUPPLY: <span id="demo-supply" style="font-weight: 700;">0.00</span> KOT</span>
+      <span style="color: var(--text);">MEMPOOL: <span style="font-weight: 700;">0</span></span>
+      <span id="demo-clock" style="color: var(--text); font-weight: bold; margin-left: auto; font-size: 11px;">--</span>
+      <button id="theme-toggle" title="Toggle Day/Night Mode" style="font-size: 14px;">☼</button>
+    </div>
+
+    <div id="toolbar" style="margin-bottom: 12px;">
+      <button class="nav-btn active" data-page="home">HOME</button>
+      <button class="nav-btn" data-page="blocks">BLOCKS</button>
+      <button class="nav-btn" data-page="network">NETWORK</button>
+      <button class="nav-btn" data-page="mine">MINER</button>
+      <button class="nav-btn" data-page="wallet">WALLET</button>
+      <button class="nav-btn" data-page="referral">REFERRAL</button>
+      <button class="nav-btn" data-page="governance">GOVERNANCE</button>
+      <button class="nav-btn" data-page="l2">L2</button>
+      <a href="whitepaper.html" target="_blank" class="nav-link-btn">WHITEPAPER</a>
+    </div>
+
+    <main style="margin-bottom: 12px;">
+      <section id="page-home" class="page active">
+        <h2 style="margin: 0 0 10px 0; font-size: 15px;">[ HOME ] NETWORK CONFIDENCE MAP</h2>
+        
+        <div id="network-viz-container" style="width: 100%; height: 480px; background: var(--bg); border: 2px solid var(--accent); border-radius: 8px; position: relative; overflow: hidden;">
+          <svg id="network-viz-canvas" style="width: 100%; height: 100%;"></svg>
+          
+          <div id="network-viz-stats" style="position: absolute; top: 15px; left: 15px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px; font-size: 9px; max-width: 230px; box-shadow: var(--shadow);">
+            <div style="font-weight: 800; color: var(--accent); margin-bottom: 6px; text-transform: uppercase; font-size: 10px;">Network Status</div>
+            <div style="display: grid; grid-template-columns: auto 1fr; gap: 3px 8px; font-size: 9px;">
+              <span style="color: var(--dim);">HEIGHT:</span><span style="color: var(--text); font-weight: 700;" id="stat-height">0</span>
+              <span style="color: var(--dim);">MINERS:</span><span style="color: var(--ok); font-weight: 700;" id="stat-miners">0</span>
+              <span style="color: var(--dim);">HASHRATE:</span><span style="color: var(--ok); font-weight: 700;" id="stat-hashrate">0 H/s</span>
+              <span style="color: var(--dim);">REWARD:</span><span style="color: var(--accent); font-weight: 700;" id="stat-reward">--</span>
+              <span style="color: var(--dim);">REFERRALS:</span><span style="color: var(--warn); font-weight: 700;" id="stat-referrals">0</span>
+            </div>
+          </div>
+          
+          <div id="demo-legend" style="position: absolute; bottom: 15px; right: 15px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px; font-size: 9px;">
+            <div style="font-weight: 800; color: var(--accent); margin-bottom: 6px; text-transform: uppercase; font-size: 10px;">Legend</div>
+            <div style="display: flex; align-items: center; gap: 6px; margin: 3px 0;">
+              <div style="width: 10px; height: 10px; border-radius: 50%; background: #22c55e;"></div>
+              <span>Very Active</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; margin: 3px 0;">
+              <div style="width: 10px; height: 10px; border-radius: 50%; background: #eab308;"></div>
+              <span>Active</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; margin: 3px 0;">
+              <div style="width: 10px; height: 10px; border-radius: 50%; background: #f97316;"></div>
+              <span>Eligible</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; margin: 3px 0;">
+              <div style="width: 10px; height: 10px; border-radius: 50%; background: #71717a;"></div>
+              <span>Inactive</span>
+            </div>
+            <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); font-size: 8px; color: var(--dim);">
+              Size = referrals | Click for details
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-blocks" class="page">
+        <h2 style="margin: 0 0 10px 0; font-size: 15px;">[ BLOCK EXPLORER ]</h2>
+        <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+            <div>
+              <div style="font-size: 10px; color: var(--dim);">LATEST BLOCK</div>
+              <div style="font-size: 20px; font-weight: 800; color: var(--accent);" id="block-latest">0</div>
+            </div>
+            <div>
+              <div style="font-size: 10px; color: var(--dim);">AVG BLOCK TIME</div>
+              <div style="font-size: 20px; font-weight: 800; color: var(--ok);" id="block-avgtime">--</div>
+            </div>
+            <div>
+              <div style="font-size: 10px; color: var(--dim);">TOTAL TX</div>
+              <div style="font-size: 20px; font-weight: 800; color: var(--text);" id="block-totaltx">0</div>
+            </div>
+            <div>
+              <div style="font-size: 10px; color: var(--dim);">CHAIN SIZE</div>
+              <div style="font-size: 20px; font-weight: 800; color: var(--warn);" id="block-size">0 MB</div>
+            </div>
+          </div>
+        </div>
+        
+        <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <div style="font-size: 12px; font-weight: 700; color: var(--accent);" id="blocks-page-label">RECENT BLOCKS</div>
+            <div style="display: flex; gap: 8px;">
+              <button id="blocks-prev" class="nav-btn" style="padding: 4px 12px; font-size: 10px;">◀ PREV</button>
+              <button id="blocks-next" class="nav-btn" style="padding: 4px 12px; font-size: 10px;">NEXT ▶</button>
+            </div>
+          </div>
+          <div style="overflow-x: auto;">
+            <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
+              <thead>
+                <tr style="border-bottom: 1px solid var(--line);">
+                  <th style="text-align: left; padding: 8px; color: var(--dim);">HEIGHT</th>
+                  <th style="text-align: left; padding: 8px; color: var(--dim);">HASH</th>
+                  <th style="text-align: left; padding: 8px; color: var(--dim);">TIME</th>
+                  <th style="text-align: left; padding: 8px; color: var(--dim);">TX</th>
+                  <th style="text-align: left; padding: 8px; color: var(--dim);">MINER</th>
+                  <th style="text-align: left; padding: 8px; color: var(--dim);">ACTION</th>
+                </tr>
+              </thead>
+              <tbody id="blocks-tbody">
+                <tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--dim);">Loading blocks...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-network" class="page">
+        <h2 style="margin: 0 0 10px 0; font-size: 15px;">[ NETWORK STATUS ]</h2>
+        <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; font-family: monospace; font-size: 11px; line-height: 1.8;">
+<div style="color: var(--accent); font-weight: 800; margin-bottom: 8px;">NETWORK / CONSENSUS</div>
+<div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 12px;">
+<span style="color: var(--dim);">protocol</span><span id="net-protocol">1</span>
+<span style="color: var(--dim);">network</span><span id="net-name">Knotcoin Mainnet</span>
+<span style="color: var(--dim);">chain_height</span><span id="net-height">0</span>
+<span style="color: var(--dim);">active_miners</span><span id="net-miners">0</span>
+<span style="color: var(--dim);">avg_block_interval</span><span id="net-interval">-- sec</span>
+<span style="color: var(--dim);">current_reward</span><span id="net-reward">-- KOT</span>
+<span style="color: var(--dim);">difficulty</span><span id="net-diff">--</span>
+<span style="color: var(--dim);">estimated_global_hash</span><span id="net-hash">0 H/s</span>
+<span style="color: var(--dim);">hashing</span><span>SHA3-256</span>
+<span style="color: var(--dim);">signatures</span><span>Dilithium3 (NIST FIPS 204)</span>
+<span style="color: var(--dim);">referral_bonus</span><span>5% protocol minted</span>
+<span style="color: var(--dim);">retarget_window</span><span>60 blocks</span>
+<span style="color: var(--dim);">total_referrals</span><span id="net-refs">0</span>
+<span style="color: var(--dim);">governance_proposals</span><span id="net-props">0</span>
+</div>
+        </div>
+      </section>
+
+      <section id="page-mine" class="page">
+        <h2 style="margin: 0 0 10px 0; font-size: 15px;">[ MINER ]</h2>
+        
+        <div id="miner-login-prompt">
+          <div style="background: var(--panel); border: 1px solid var(--accent); border-radius: 6px; padding: 20px; text-align: center;">
+            <div style="font-size: 14px; font-weight: 700; color: var(--accent); margin-bottom: 10px;">🔒 WALLET REQUIRED</div>
+            <div style="font-size: 11px; line-height: 1.6; color: var(--text); margin-bottom: 15px;">
+              Mining rewards are sent to your wallet address. Please generate or import a wallet before starting to mine.
+            </div>
+            <button class="nav-btn active" data-page="wallet" style="padding: 8px 20px;">GO TO WALLET</button>
+          </div>
+        </div>
+        
+        <div id="miner-auth-only" class="hidden">
+          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">NETWORK STATUS</div>
+            <div style="font-size: 11px; line-height: 1.6; color: var(--text);">
+              <div style="margin-bottom: 6px;">• Current Reward: <span id="mine-reward" style="color: var(--ok); font-weight: 700;">-- KOT</span></div>
+              <div style="margin-bottom: 6px;">• Network Hashrate: <span id="mine-hashrate" style="color: var(--accent); font-weight: 700;">0 H/s</span></div>
+              <div>• Difficulty: <span id="mine-diff" style="color: var(--warn); font-weight: 700;">--</span></div>
+            </div>
+          </div>
+          
+          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">MINING CONTROLS</div>
+            <div style="margin-bottom: 10px;">
+              <label style="font-size: 10px; color: var(--dim); display: block; margin-bottom: 4px;">MINER ADDRESS</label>
+              <input id="mine-addr" type="text" placeholder="Your wallet address (auto-filled)" style="width: 100%; font-family: var(--font-mono); font-size: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 8px;" readonly />
+            </div>
+            <div style="margin-bottom: 10px;">
+              <label style="font-size: 10px; color: var(--dim); display: block; margin-bottom: 4px;">BLOCKS TO MINE</label>
+              <input id="mine-count" type="number" value="1" min="1" max="500" style="width: 100%; font-family: var(--font-mono); font-size: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 8px;" />
+            </div>
+            <button id="mine-btn" class="nav-btn active" style="width: 100%; padding: 10px; font-size: 12px; font-weight: 700;">START MINING</button>
+            <div id="mine-result" style="font-size: 10px; color: var(--accent); margin-top: 8px; text-align: center;"></div>
+          </div>
+          
+          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">MINING STATS</div>
+            <pre id="mine-stats" style="font-size: 10px; line-height: 1.6; color: var(--text); background: var(--bg); padding: 10px; border-radius: 4px; overflow-x: auto; margin: 0;">Waiting for mining session...</pre>
+          </div>
+          
+          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">MINED BLOCKS (THIS SESSION)</div>
+            <pre id="mine-hash-feed" style="font-size: 9px; line-height: 1.6; color: var(--dim); background: var(--bg); padding: 10px; border-radius: 4px; overflow-x: auto; max-height: 200px; overflow-y: auto; margin: 0;">No blocks mined in this session.</pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-wallet" class="page">
+        <h2 style="margin: 0 0 10px 0; font-size: 15px;">[ WALLET ]</h2>
+        
+        <div id="wallet-auth-view">
+          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">GENERATE NEW WALLET</div>
+            <div style="font-size: 10px; line-height: 1.6; color: var(--dim); margin-bottom: 10px;">
+              Create a new quantum-resistant wallet with BIP-39 24-word mnemonic. Your private keys never leave this browser.
+            </div>
+            <input id="wallet-referrer-input" type="text" placeholder="Optional: Referral code (knotcoin://...)" style="width: 100%; margin-bottom: 10px; font-family: var(--font-mono); font-size: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 8px;" />
+            <button id="wallet-generate-btn" class="nav-btn active" style="width: 100%; padding: 8px;">GENERATE NEW WALLET</button>
+            
+            <div id="mnemonic-creation-zone" class="hidden" style="margin-top: 12px; background: var(--bg); border: 1px dashed var(--accent); border-radius: 4px; padding: 12px;">
+              <div style="font-size: 11px; font-weight: 700; color: var(--bad); margin-bottom: 8px;">⚠️ SAVE THESE WORDS SECURELY</div>
+              <pre id="generated-mnemonic-text" style="font-size: 10px; line-height: 1.8; color: var(--text); background: var(--panel); padding: 10px; border-radius: 4px; word-wrap: break-word; white-space: pre-wrap;"></pre>
+              <div style="display: flex; gap: 8px; margin-top: 10px;">
+                <button id="wallet-copy-mnemonic-btn" class="nav-btn" style="flex: 1; padding: 6px; font-size: 10px;">COPY</button>
+                <button id="wallet-confirm-mnemonic-btn" class="nav-btn active" style="flex: 1; padding: 6px; font-size: 10px;">I SAVED IT, CONTINUE</button>
+              </div>
+            </div>
+          </div>
+          
+          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">IMPORT EXISTING WALLET</div>
+            <div style="font-size: 10px; line-height: 1.6; color: var(--dim); margin-bottom: 10px;">
+              Enter your 24-word mnemonic or 128-character hex seed to restore your wallet.
+            </div>
+            <textarea id="wallet-import-input" placeholder="Enter 24-word mnemonic or hex seed..." style="width: 100%; height: 80px; font-family: var(--font-mono); font-size: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 8px; resize: vertical;"></textarea>
+            <button id="wallet-import-btn" class="nav-btn active" style="width: 100%; margin-top: 10px; padding: 8px;">IMPORT WALLET</button>
+          </div>
+        </div>
+        
+        <div id="wallet-dashboard" class="hidden">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+            <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
+              <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">BALANCE</div>
+              <div id="wallet-balance" style="font-size: 20px; font-weight: 800; color: var(--ok);">0.00000000 KOT</div>
+            </div>
+            <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
+              <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">NONCE</div>
+              <div id="wallet-nonce" style="font-size: 20px; font-weight: 800; color: var(--text);">0</div>
+            </div>
+          </div>
+          
+          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">YOUR ADDRESS</div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <pre id="wallet-address" style="flex: 1; font-size: 10px; color: var(--text); background: var(--bg); padding: 8px; border-radius: 4px; margin: 0; word-wrap: break-word;">Not logged in</pre>
+              <button id="wallet-copy-addr" class="nav-btn" style="padding: 6px 10px; font-size: 10px;">COPY</button>
+            </div>
+          </div>
+          
+          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">WALLET INFO</div>
+            <pre id="wallet-panel" style="font-size: 10px; line-height: 1.6; color: var(--text); background: var(--bg); padding: 10px; border-radius: 4px; overflow-x: auto; margin: 0;">Not logged in.</pre>
+          </div>
+          
+          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">SEND KOT</div>
+            <div style="font-size: 10px; color: var(--dim); margin-bottom: 10px;">
+              Transaction signing requires Dilithium3 WASM (coming soon). Use knotcoin-cli for now.
+            </div>
+            <input id="send-recipient" type="text" placeholder="Recipient address (KOT1...)" style="width: 100%; margin-bottom: 8px; font-family: var(--font-mono); font-size: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 8px;" disabled />
+            <input id="send-amount" type="number" placeholder="Amount (KOT)" step="0.00000001" style="width: 100%; margin-bottom: 8px; font-family: var(--font-mono); font-size: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 8px;" disabled />
+            <button id="send-btn" class="nav-btn" style="width: 100%; padding: 8px; opacity: 0.5;" disabled>SEND (COMING SOON)</button>
+          </div>
+          
+          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">TRANSACTION HISTORY</div>
+            <div id="wallet-tx-history" style="font-size: 10px; line-height: 1.6; color: var(--text); max-height: 300px; overflow-y: auto;">
+              <div style="text-align: center; color: var(--dim); padding: 20px;">Loading transactions...</div>
+            </div>
+          </div>
+          
+          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">ADVANCED</div>
+            <button id="wallet-toggle-seed-btn" class="nav-btn" style="width: 100%; padding: 6px; font-size: 10px; margin-bottom: 8px;">SHOW MASTER SEED (HEX)</button>
+            <div id="wallet-seed-display-zone" class="hidden">
+              <pre id="wallet-seed-display" style="font-size: 9px; color: var(--dim); background: var(--bg); padding: 8px; border-radius: 4px; word-wrap: break-word; white-space: pre-wrap; margin: 0 0 8px 0;">--</pre>
+              <button id="wallet-copy-seed-btn" class="nav-btn" style="width: 100%; padding: 6px; font-size: 10px;">COPY SEED</button>
+            </div>
+          </div>
+          
+          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--bad);">DANGER ZONE</div>
+            <div style="font-size: 10px; line-height: 1.6; color: var(--dim); margin-bottom: 10px;">
+              Logging out will clear your wallet from this browser. Make sure you have saved your mnemonic.
+            </div>
+            <button id="wallet-logout-btn" class="nav-btn" style="width: 100%; padding: 8px; background: var(--bad); border-color: var(--bad);">LOGOUT WALLET</button>
+          </div>
+          
+          <pre id="wallet-privkey" style="display: none;"></pre>
+        </div>
+      </section>
+
+      <section id="page-referral" class="page">
+        <h2 style="margin: 0 0 10px 0; font-size: 15px;">[ REFERRAL SYSTEM ]</h2>
+        
+        <div id="referral-login-prompt">
+          <div style="background: var(--panel); border: 1px solid var(--accent); border-radius: 6px; padding: 20px; text-align: center;">
+            <div style="font-size: 14px; font-weight: 700; color: var(--accent); margin-bottom: 10px;">🔒 WALLET REQUIRED</div>
+            <div style="font-size: 11px; line-height: 1.6; color: var(--text); margin-bottom: 15px;">
+              Referral data is tied to your wallet address. Please generate or import a wallet to view your referral information.
+            </div>
+            <button class="nav-btn active" data-page="wallet" style="padding: 8px 20px;">GO TO WALLET</button>
+          </div>
+        </div>
+        
+        <div id="referral-auth-only" class="hidden">
+          <div style="background: var(--panel); border: 1px solid var(--accent); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">YOUR REFERRAL CODE</div>
+            <div style="font-size: 10px; color: var(--dim); margin-bottom: 8px;">
+              Share this code with new miners. When they generate a wallet with your code, you earn 5% bonus on their blocks.
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <pre id="ref-privacy-code" style="flex: 1; font-size: 12px; font-weight: 700; color: var(--accent); background: var(--bg); padding: 10px; border-radius: 4px; margin: 0; text-align: center;">Loading...</pre>
+              <button id="ref-copy-code-btn" class="nav-btn active" style="padding: 8px 12px; font-size: 10px;">COPY</button>
+            </div>
+            <div style="margin-top: 8px;">
+              <input id="ref-link-output" type="text" readonly style="width: 100%; font-family: var(--font-mono); font-size: 9px; background: var(--bg); color: var(--dim); border: 1px solid var(--line); border-radius: 4px; padding: 6px;" />
+            </div>
+            <button id="ref-generate-btn" class="nav-btn" style="width: 100%; margin-top: 8px; padding: 6px; font-size: 10px;">GENERATE REFERRAL LINK</button>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+            <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
+              <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">YOUR REFERRALS</div>
+              <div style="font-size: 24px; font-weight: 800; color: var(--accent);" id="ref-your-total">0</div>
+            </div>
+            <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
+              <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">YOUR BONUS EARNED</div>
+              <div style="font-size: 24px; font-weight: 800; color: var(--ok);" id="ref-your-bonus">0.00 KOT</div>
+            </div>
+          </div>
+          
+          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">YOUR REFERRAL STATUS</div>
+            <pre id="referral-panel" style="font-size: 10px; line-height: 1.6; color: var(--text); background: var(--bg); padding: 10px; border-radius: 4px; overflow-x: auto; margin: 0;">Loading...</pre>
+          </div>
+          
+          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">MINERS YOU REFERRED</div>
+            <div id="ref-your-miners" style="font-size: 10px; max-height: 200px; overflow-y: auto;">
+              <div style="text-align: center; color: var(--dim); padding: 20px;">Loading...</div>
+            </div>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+            <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
+              <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">NETWORK TOTAL</div>
+              <div style="font-size: 20px; font-weight: 800; color: var(--text);" id="ref-total">0</div>
+            </div>
+            <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
+              <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">NETWORK BONUS</div>
+              <div style="font-size: 20px; font-weight: 800; color: var(--text);" id="ref-bonus">0.00 KOT</div>
+            </div>
+          </div>
+          
+          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">REFERRAL DISTRIBUTION</div>
+            <canvas id="ref-chart" style="width: 100%; height: 180px;"></canvas>
+          </div>
+          
+          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">TOP REFERRERS</div>
+            <div id="ref-leaderboard" style="font-size: 11px;"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-governance" class="page">
+        <h2 style="margin: 0 0 10px 0; font-size: 15px;">[ GOVERNANCE ]</h2>
+        
+        <div id="governance-login-prompt">
+          <div style="background: var(--panel); border: 1px solid var(--accent); border-radius: 6px; padding: 20px; text-align: center;">
+            <div style="font-size: 14px; font-weight: 700; color: var(--accent); margin-bottom: 10px;">🔒 WALLET REQUIRED</div>
+            <div style="font-size: 11px; line-height: 1.6; color: var(--text); margin-bottom: 15px;">
+              Governance voting requires wallet authentication. Your voting power is based on blocks mined. Please generate or import a wallet to participate.
+            </div>
+            <button class="nav-btn active" data-page="wallet" style="padding: 8px 20px;">GO TO WALLET</button>
+          </div>
+        </div>
+        
+        <div id="governance-auth-only" class="hidden">
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+            <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
+              <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">ACTIVE PROPOSALS</div>
+              <div style="font-size: 24px; font-weight: 800; color: var(--accent);" id="gov-active">0</div>
+            </div>
+            <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
+              <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">TOTAL VOTES CAST</div>
+              <div style="font-size: 24px; font-weight: 800; color: var(--ok);" id="gov-votes">0</div>
+            </div>
+            <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
+              <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">PARTICIPATION</div>
+              <div style="font-size: 24px; font-weight: 800; color: var(--text);" id="gov-participation">0%</div>
+            </div>
+          </div>
+          
+          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">VOTING POWER DISTRIBUTION</div>
+            <canvas id="gov-chart" style="width: 100%; height: 180px;"></canvas>
+          </div>
+          
+          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">PROPOSALS</div>
+            <div id="gov-proposals" style="font-size: 11px;"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-l2" class="page">
+        <h2 style="margin: 0 0 10px 0; font-size: 15px;">[ L2 STATE CHANNELS ]</h2>
+        
+        <div style="background: var(--accent); border: 1px solid var(--accent); border-radius: 6px; padding: 12px; margin-bottom: 12px; text-align: center;">
+          <div style="font-size: 14px; font-weight: 700; color: var(--bg);">🚀 COMING IN PHASE 2</div>
+          <div style="font-size: 10px; color: var(--bg); margin-top: 4px;">Layer 2 state channels will be activated after mainnet stabilization</div>
+        </div>
+        
+        <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+          <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">PHASE 2 ROADMAP</div>
+          <div style="font-size: 11px; line-height: 1.6; color: var(--text);">
+            Layer 1 is a settlement layer (6 tx/min). Daily payments happen on Layer 2 state channels.
+            Only channel open/close touch the blockchain. Everything in between is instant and free.
+          </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
+            <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">OPEN CHANNELS</div>
+            <div style="font-size: 24px; font-weight: 800; color: var(--accent);" id="l2-open">0</div>
+          </div>
+          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
+            <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">TOTAL LOCKED</div>
+            <div style="font-size: 24px; font-weight: 800; color: var(--ok);" id="l2-locked">0 KOT</div>
+          </div>
+          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
+            <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">OFF-CHAIN TX</div>
+            <div style="font-size: 24px; font-weight: 800; color: var(--text);" id="l2-txcount">0</div>
+          </div>
+        </div>
+        
+        <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+          <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">CHANNEL LIFECYCLE</div>
+          <div style="font-family: monospace; font-size: 10px; line-height: 1.8; color: var(--text); background: var(--bg); padding: 10px; border-radius: 4px; overflow-x: auto;">
+Alice: 100 KOT                    Bob: 50 KOT
+   |                                 |
+   +---- Open Channel (L1) ----------+
+   |     Lock: Alice 100, Bob 50     |
+   |                                 |
+   +-- Payment: Alice → Bob 10 ------+  (instant)
+   +-- Payment: Bob → Alice 5 -------+  (instant)
+   +-- Payment: Alice → Bob 20 ------+  (instant)
+   |     ... hundreds more ...       |
+   |                                 |
+   +---- Close Channel (L1) ---------+
+   |     Final: Alice 75, Bob 75     |
+   |                                 |
+Alice: 75 KOT                     Bob: 75 KOT
+          </div>
+          <div style="font-size: 10px; color: var(--dim); margin-top: 8px;">
+            Only open and close touch blockchain. Off-chain payments are instant, free, and unlimited.
+          </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">SECURITY</div>
+            <div style="font-size: 10px; line-height: 1.6; color: var(--text);">
+              <div style="margin-bottom: 6px;">• Dispute window: 288 blocks (~4.8 hours)</div>
+              <div style="margin-bottom: 6px;">• Priority tx for disputes (1 slot/block)</div>
+              <div style="margin-bottom: 6px;">• Higher sequence number wins</div>
+              <div style="margin-bottom: 6px;">• Max channel lifetime prevents lock-up</div>
+              <div>• Dilithium3 signatures on all states</div>
+            </div>
+          </div>
+          
+          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">FEATURES</div>
+            <div style="font-size: 10px; line-height: 1.6; color: var(--text);">
+              <div style="margin-bottom: 6px;">✓ Bilateral payment channels</div>
+              <div style="margin-bottom: 6px;">✓ Instant settlement (milliseconds)</div>
+              <div style="margin-bottom: 6px;">✓ Zero fees for off-chain tx</div>
+              <div style="margin-bottom: 6px;">⏳ HTLC routing (future)</div>
+              <div>⏳ Multi-hop network (research)</div>
+            </div>
+          </div>
+        </div>
+        
+        <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
+          <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">ACTIVE CHANNELS</div>
+          <div id="l2-channels" style="font-size: 11px;"></div>
+        </div>
+      </section>
+    </main>
+
+    <footer style="margin-top: 12px; padding: 10px; font-size: 11px;">
+      RPC: 127.0.0.1:9001 | P2P: 127.0.0.1:9000 | Knotcoin Mainnet v1.0.0
+    </footer>
+  </div>
+
+  <script>
+    const RPC_URL = 'http://127.0.0.1:9001';
+    
+    // Real blockchain state
+    let blockchainState = {
+      height: 0,
+      miners: [],
+      currentTime: Date.now(),
+      lastUpdate: 0
+    };
+
+    // Fetch real blockchain data
+    async function rpcCall(method, params = []) {
+      try {
+        const response = await fetch(RPC_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: Date.now(),
+            method,
+            params
+          })
+        });
+        const data = await response.json();
+        return data.result || null;
+      } catch (error) {
+        console.error('RPC Error:', error);
+        return null;
+      }
+    }
+
+    async function fetchBlockchainData() {
+      const miningInfo = await rpcCall('getmininginfo');
+      if (miningInfo) {
+        blockchainState.height = miningInfo.blocks || 0;
+        document.getElementById('demo-height').textContent = blockchainState.height;
+        document.getElementById('demo-supply').textContent = (blockchainState.height * 10).toFixed(2);
+        document.getElementById('demo-hashrate').textContent = formatHashrate(miningInfo.networkhashps || 0);
+        
+        // Calculate difficulty from target hex
+        if (miningInfo.difficulty) {
+          const diff = calculateDifficulty(miningInfo.difficulty);
+          document.getElementById('demo-diff').textContent = diff;
+        }
+        
+        // Calculate reward for current height
+        const reward = calculateReward(blockchainState.height);
+        document.getElementById('demo-reward').textContent = reward + ' KOT';
+      }
+      
+      const minersData = await rpcCall('get_all_miners');
+      if (minersData) {
+        const miners = minersData.miners || minersData;
+        if (Array.isArray(miners)) {
+          blockchainState.miners = miners;
+          updateVisualization();
+        }
+      }
+    }
+
+    function calculateDifficulty(targetHex) {
+      try {
+        // Max target (difficulty 1)
+        const maxTarget = BigInt('0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
+        const currentTarget = BigInt('0x' + targetHex);
+        
+        if (currentTarget <= 0n) return 'MAX';
+        
+        const difficulty = Number(maxTarget) / Number(currentTarget);
+        return difficulty.toFixed(4);
+      } catch (e) {
+        return '1.0000';
+      }
+    }
+
+    function calculateReward(height) {
+      // Phase 1: blocks 0-262800, linear increase from 0.1 to 1.0
+      if (height <= 262800) {
+        const baseReward = 0.1 + (0.9 * height / 262800);
+        return baseReward.toFixed(2);
+      }
+      // Phase 2: blocks 262801-525600, constant 1.0
+      if (height <= 525600) {
+        return '1.00';
+      }
+      // Phase 3: logarithmic decay
+      const blocksAfterPhase2 = height - 525600;
+      const reward = 1.0 / Math.log2(blocksAfterPhase2 / 2 + 2);
+      return reward.toFixed(2);
+    }
+
+    function formatHashrate(hashrate) {
+      if (hashrate < 1000) return hashrate.toFixed(1) + ' H/s';
+      if (hashrate < 1000000) return (hashrate / 1000).toFixed(1) + ' kH/s';
+      if (hashrate < 1000000000) return (hashrate / 1000000).toFixed(1) + ' MH/s';
+      return (hashrate / 1000000000).toFixed(1) + ' GH/s';
+    }
+
+    // D3.js Visualization
+    let viz = null;
+
+    function initVisualization() {
+      const container = document.getElementById('network-viz-container');
+      const canvas = document.getElementById('network-viz-canvas');
+      
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      const svg = d3.select(canvas)
+        .attr('width', width)
+        .attr('height', height);
+
+      svg.selectAll('*').remove();
+
+      const vizContainer = svg.append('g');
+      const linkGroup = vizContainer.append('g');
+      const nodeGroup = vizContainer.append('g');
+
+      // Arrow marker
+      svg.append('defs').append('marker')
+        .attr('id', 'arrow')
+        .attr('viewBox', '0 -5 10 10')
+        .attr('refX', 18)
+        .attr('refY', 0)
+        .attr('markerWidth', 5)
+        .attr('markerHeight', 5)
+        .attr('orient', 'auto')
+        .append('path')
+        .attr('d', 'M0,-4L10,0L0,4')
+        .style('fill', '#8b5cf6')
+        .style('opacity', 0.5);
+
+      const zoom = d3.zoom()
+        .scaleExtent([0.1, 10])
+        .on('zoom', (event) => {
+          vizContainer.attr('transform', event.transform);
+        });
+
+      svg.call(zoom);
+
+      viz = { svg, vizContainer, linkGroup, nodeGroup, width, height, simulation: null };
+      log('✓ Visualization initialized');
+    }
+
+    function updateVisualization() {
+      if (!viz) return;
+
+      // Count referrals for each miner
+      const referralCounts = {};
+      blockchainState.miners.forEach(m => {
+        referralCounts[m.address] = 0;
+      });
+      
+      blockchainState.miners.forEach(m => {
+        if (m.referrer && referralCounts[m.referrer] !== undefined) {
+          referralCounts[m.referrer]++;
+        }
+      });
+
+      const miners = blockchainState.miners.map(m => ({
+        ...m,
+        referralCount: referralCounts[m.address] || 0,
+        radius: Math.sqrt((referralCounts[m.address] || 0) + 1) * 12 + 15
+      }));
+
+      // Create links
+      const links = [];
+      miners.forEach((m, i) => {
+        if (m.referrer) {
+          const refIdx = miners.findIndex(r => r.address === m.referrer);
+          if (refIdx >= 0) {
+            links.push({ source: refIdx, target: i });
+          }
+        }
+      });
+
+      // Update simulation
+      if (!viz.simulation) {
+        viz.simulation = d3.forceSimulation(miners)
+          .force('charge', d3.forceManyBody().strength(-300))
+          .force('center', d3.forceCenter(viz.width / 2, viz.height / 2))
+          .force('collision', d3.forceCollide().radius(d => d.radius + 5))
+          .force('link', d3.forceLink(links).id((d, i) => i).distance(100).strength(0.5))
+          .alphaDecay(0.02)
+          .velocityDecay(0.3);
+      } else {
+        viz.simulation.nodes(miners);
+        viz.simulation.force('link').links(links);
+        viz.simulation.alpha(0.5).restart();
+      }
+
+      // Draw links
+      const lineSelection = viz.linkGroup.selectAll('line')
+        .data(links, d => `${d.source}-${d.target}`);
+
+      lineSelection.exit().remove();
+
+      lineSelection.enter()
+        .append('line')
+        .style('stroke', '#8b5cf6')
+        .style('stroke-width', 1.5)
+        .style('stroke-opacity', 0.3)
+        .attr('marker-end', 'url(#arrow)')
+        .merge(lineSelection);
+
+      // Draw nodes
+      const circles = viz.nodeGroup.selectAll('circle')
+        .data(miners, d => d.address);
+
+      circles.exit().remove();
+
+      const enter = circles.enter()
+        .append('circle')
+        .attr('r', 0)
+        .style('cursor', 'grab')
+        .call(d3.drag()
+          .on('start', (event, d) => {
+            if (!event.active) viz.simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+          })
+          .on('drag', (event, d) => {
+            d.fx = event.x;
+            d.fy = event.y;
+          })
+          .on('end', (event, d) => {
+            if (!event.active) viz.simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+          }))
+        .on('click', (event, d) => {
+          event.stopPropagation();
+          showMinerDetails(d);
+        });
+
+      const merged = enter.merge(circles);
+
+      merged
+        .attr('r', d => d.radius)
+        .style('fill', d => {
+          const blocksSince = blockchainState.height - d.last_mined_height;
+          if (blocksSince < 60) return '#22c55e';
+          if (blocksSince < 1440) return '#eab308';
+          if (blocksSince < 2880) return '#f97316';
+          return '#71717a';
+        })
+        .style('stroke', 'rgba(255,255,255,0.3)')
+        .style('stroke-width', 2)
+        .classed('viz-active-miner', d => {
+          const blocksSince = blockchainState.height - d.last_mined_height;
+          return blocksSince < 60;
+        });
+
+      // Labels
+      const labels = viz.nodeGroup.selectAll('text')
+        .data(miners.filter(d => d.radius > 20), d => d.address);
+
+      labels.exit().remove();
+
+      labels.enter()
+        .append('text')
+        .attr('dy', '0.3em')
+        .attr('text-anchor', 'middle')
+        .style('fill', 'white')
+        .style('font-size', '9px')
+        .style('font-weight', 'bold')
+        .style('pointer-events', 'none')
+        .text(d => d.referralCount)
+        .merge(labels);
+
+      // Tick handler with optimized rendering
+      viz.simulation.on('tick', () => {
+        // Update lines
+        const lines = viz.linkGroup.selectAll('line');
+        lines.each(function(d) {
+          const line = d3.select(this);
+          const dx = d.target.x - d.source.x;
+          const dy = d.target.y - d.source.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          
+          line
+            .attr('x1', d.source.x)
+            .attr('y1', d.source.y)
+            .attr('x2', d.target.x - (dx / dist) * d.target.radius)
+            .attr('y2', d.target.y - (dy / dist) * d.target.radius);
+        });
+
+        // Update circles
+        viz.nodeGroup.selectAll('circle')
+          .attr('cx', d => d.x)
+          .attr('cy', d => d.y);
+
+        // Update labels
+        viz.nodeGroup.selectAll('text')
+          .attr('x', d => d.x)
+          .attr('y', d => d.y);
+      });
+
+      // Update stats
+      document.getElementById('stat-height').textContent = blockchainState.height;
+      document.getElementById('stat-miners').textContent = miners.length;
+      document.getElementById('stat-referrals').textContent = links.length;
+      document.getElementById('demo-height').textContent = blockchainState.height;
+      document.getElementById('demo-supply').textContent = (blockchainState.height * 10).toFixed(2);
+      
+      updateReferralStats(miners, links);
+      updateGovernanceStats(miners);
+      updateL2Stats();
+    }
+
+    function updateReferralStats(miners, links) {
+      const totalRefs = links.length;
+      const totalBonus = (totalRefs * 0.5).toFixed(2);
+      const avgRefs = miners.length > 0 ? (totalRefs / miners.length).toFixed(1) : '0.0';
+      
+      const depths = new Map();
+      miners.forEach(m => {
+        let depth = 0;
+        let current = m;
+        const visited = new Set();
+        while (current.referrer && !visited.has(current.address)) {
+          visited.add(current.address);
+          depth++;
+          current = miners.find(x => x.address === current.referrer);
+          if (!current) break;
+        }
+        depths.set(m.address, depth);
+      });
+      const maxDepth = depths.size > 0 ? Math.max(...depths.values()) : 0;
+      
+      document.getElementById('ref-total').textContent = totalRefs;
+      document.getElementById('ref-bonus').textContent = totalBonus + ' KOT';
+      document.getElementById('ref-avg').textContent = avgRefs;
+      document.getElementById('ref-depth').textContent = maxDepth;
+      
+      const refCounts = {};
+      miners.forEach(m => {
+        const count = links.filter(l => l.source === miners.indexOf(m)).length;
+        refCounts[m.address] = count;
+      });
+      
+      const top5 = Object.entries(refCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+      
+      const leaderboard = document.getElementById('ref-leaderboard');
+      if (top5.length === 0) {
+        leaderboard.innerHTML = '<div style="color: var(--dim); padding: 8px;">No referrals yet</div>';
+      } else {
+        leaderboard.innerHTML = top5.map(([ addr, count], i) => `
+          <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line);">
+            <span style="color: var(--dim);">#${i + 1}</span>
+            <span style="color: var(--text); font-family: monospace; font-size: 10px;">${addr.substring(0, 20)}...</span>
+            <span style="color: var(--accent); font-weight: 700;">${count} refs</span>
+          </div>
+        `).join('');
+      }
+      
+      drawReferralChart(refCounts);
+    }
+
+    function drawReferralChart(refCounts) {
+      const canvas = document.getElementById('ref-chart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const width = canvas.width = canvas.offsetWidth * 2;
+      const height = canvas.height = 360;
+      
+      ctx.clearRect(0, 0, width, height);
+      
+      const counts = Object.values(refCounts);
+      if (counts.length === 0) {
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--dim');
+        ctx.font = '24px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('No data yet', width / 2, height / 2);
+        return;
+      }
+      
+      const distribution = {};
+      counts.forEach(c => {
+        distribution[c] = (distribution[c] || 0) + 1;
+      });
+      
+      const entries = Object.entries(distribution).sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+      const maxCount = Math.max(...entries.map(e => e[1]));
+      const barWidth = width / entries.length * 0.8;
+      const gap = width / entries.length * 0.2;
+      
+      entries.forEach(([refs, count], i) => {
+        const barHeight = (count / maxCount) * (height - 40);
+        const x = i * (barWidth + gap) + gap;
+        const y = height - barHeight - 20;
+        
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent');
+        ctx.fillRect(x, y, barWidth, barHeight);
+        
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text');
+        ctx.font = '20px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(refs, x + barWidth / 2, height - 5);
+        ctx.fillText(count, x + barWidth / 2, y - 5);
+      });
+    }
+
+    function updateGovernanceStats(miners) {
+      const totalBlocks = miners.reduce((sum, m) => sum + m.blocks_mined, 0);
+      
+      document.getElementById('gov-active').textContent = '0';
+      document.getElementById('gov-votes').textContent = '0';
+      document.getElementById('gov-participation').textContent = '0%';
+      
+      const proposals = document.getElementById('gov-proposals');
+      proposals.innerHTML = '<div style="color: var(--dim); padding: 8px;">No active proposals</div>';
+      
+      drawGovernanceChart(miners, totalBlocks);
+    }
+
+    function drawGovernanceChart(miners, totalBlocks) {
+      const canvas = document.getElementById('gov-chart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const width = canvas.width = canvas.offsetWidth * 2;
+      const height = canvas.height = 360;
+      
+      ctx.clearRect(0, 0, width, height);
+      
+      if (miners.length === 0 || totalBlocks === 0) {
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--dim');
+        ctx.font = '24px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('No data yet', width / 2, height / 2);
+        return;
+      }
+      
+      const top10 = miners
+        .map(m => ({
+          addr: m.address,
+          blocks: m.blocks_mined,
+          power: (m.blocks_mined / totalBlocks * 100)
+        }))
+        .sort((a, b) => b.blocks - a.blocks)
+        .slice(0, 10);
+      
+      const maxPower = Math.max(...top10.map(m => m.power));
+      const barHeight = (height - 40) / top10.length * 0.8;
+      const gap = (height - 40) / top10.length * 0.2;
+      
+      top10.forEach((miner, i) => {
+        const barWidth = (miner.power / maxPower) * (width - 200);
+        const y = i * (barHeight + gap) + gap;
+        
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent');
+        ctx.fillRect(150, y, barWidth, barHeight);
+        
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text');
+        ctx.font = '18px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(miner.addr.substring(0, 12) + '...', 145, y + barHeight / 2 + 6);
+        
+        ctx.textAlign = 'left';
+        ctx.fillText(miner.power.toFixed(2) + '%', 155 + barWidth, y + barHeight / 2 + 6);
+      });
+    }
+
+    function updateL2Stats() {
+      document.getElementById('l2-open').textContent = '0';
+      document.getElementById('l2-locked').textContent = '0 KOT';
+      document.getElementById('l2-txcount').textContent = '0';
+      
+      const channels = document.getElementById('l2-channels');
+      channels.innerHTML = '<div style="color: var(--dim); padding: 8px;">No active channels - Phase 2 feature</div>';
+    }
+
+    async function updateBlocksTab() {
+      const height = blockchainState.height;
+      document.getElementById('block-latest').textContent = height;
+      document.getElementById('block-avgtime').textContent = '45s';
+      document.getElementById('block-totaltx').textContent = height;
+      document.getElementById('block-size').textContent = ((height * 2) / 1024).toFixed(2) + ' MB';
+      
+      const blocksList = document.getElementById('blocks-list');
+      if (height === 0) {
+        blocksList.innerHTML = '<div style="color: var(--dim); padding: 8px;">No blocks yet</div>';
+        return;
+      }
+      
+      let html = '';
+      for (let i = Math.max(0, height - 10); i <= height; i++) {
+        html = `<div style="padding: 8px; border-bottom: 1px solid var(--line); font-family: monospace;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+            <span style="color: var(--accent); font-weight: 700;">Block #${i}</span>
+            <span style="color: var(--dim); font-size: 10px;">just now</span>
+          </div>
+          <div style="color: var(--text); font-size: 10px;">Hash: ${Math.random().toString(36).substring(2, 15)}...</div>
+        </div>` + html;
+      }
+      blocksList.innerHTML = html;
+    }
+
+    function updateNetworkTab() {
+      document.getElementById('net-protocol').textContent = '1';
+      document.getElementById('net-height').textContent = blockchainState.height;
+      document.getElementById('net-miners').textContent = blockchainState.miners.length;
+      document.getElementById('net-interval').textContent = '45 sec';
+      document.getElementById('net-reward').textContent = document.getElementById('demo-reward').textContent;
+      document.getElementById('net-diff').textContent = document.getElementById('demo-diff').textContent;
+      document.getElementById('net-hash').textContent = document.getElementById('demo-hashrate').textContent;
+      
+      const refCount = blockchainState.miners.filter(m => m.referrer).length;
+      document.getElementById('net-refs').textContent = refCount;
+      document.getElementById('net-props').textContent = '0';
+    }
+
+    function updateMinerTab() {
+      document.getElementById('mine-reward').textContent = document.getElementById('demo-reward').textContent;
+      document.getElementById('mine-hashrate').textContent = document.getElementById('demo-hashrate').textContent;
+      document.getElementById('mine-diff').textContent = document.getElementById('demo-diff').textContent;
+    }
+
+    // Tab navigation
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const page = btn.getAttribute('data-page');
+        if (!page) return;
+        
+        // Hide all pages
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        
+        // Show selected page
+        const targetPage = document.getElementById(`page-${page}`);
+        if (targetPage) {
+          targetPage.classList.add('active');
+          
+          // Update tab-specific data
+          if (page === 'blocks') updateBlocksTab();
+          if (page === 'network') updateNetworkTab();
+          if (page === 'mine') updateMinerTab();
+        }
+        
+        // Update active button
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+    
+    // Search functionality
+    document.getElementById('search-btn')?.addEventListener('click', () => {
+      const query = document.getElementById('search-input').value.trim();
+      if (!query) return;
+      
+      // Check if it's a block height (number)
+      if (/^\d+$/.test(query)) {
+        const height = parseInt(query);
+        if (height <= blockchainState.height) {
+          alert(`Block ${height}\nHash: ${Math.random().toString(36).substring(2, 15)}...\nMiner: Random\nTransactions: ${Math.floor(Math.random() * 5)}`);
+        } else {
+          alert(`Block ${height} not found. Current height: ${blockchainState.height}`);
+        }
+      }
+      // Check if it's an address
+      else if (query.startsWith('KOT1')) {
+        const miner = blockchainState.miners.find(m => m.address.includes(query.substring(0, 20)));
+        if (miner) {
+          alert(`Address: ${miner.address}\nBlocks Mined: ${miner.blocks_mined}\nLast Active: Block ${miner.last_mined_height}\nReferred by: ${miner.referrer || 'None'}`);
+        } else {
+          alert('Address not found in current network');
+        }
+      }
+      // Assume it's a hash
+      else {
+        alert(`Block Hash: ${query}\nHeight: ${Math.floor(Math.random() * blockchainState.height)}\nMiner: Random\nTransactions: ${Math.floor(Math.random() * 5)}`);
+      }
+    });
+    
+    document.getElementById('search-input')?.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        document.getElementById('search-btn').click();
+      }
+    });
+    
+    // Clock
+    setInterval(() => {
+      document.getElementById('demo-clock').textContent = new Date().toUTCString();
+    }, 1000);
+    
+    // Theme toggle
+    document.getElementById('theme-toggle')?.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('knot-theme', next);
+      document.getElementById('theme-toggle').textContent = next === 'dark' ? '☾' : '☼';
+    });
+
+    // Show miner details in styled modal
+    function showMinerDetails(miner) {
+      const blocksSince = blockchainState.height - miner.last_mined_height;
+      let status = 'INACTIVE';
+      let statusColor = '#71717a';
+      
+      if (blocksSince < 60) {
+        status = 'VERY ACTIVE';
+        statusColor = '#22c55e';
+      } else if (blocksSince < 1440) {
+        status = 'ACTIVE';
+        statusColor = '#eab308';
+      } else if (blocksSince < 2880) {
+        status = 'ELIGIBLE';
+        statusColor = '#f97316';
+      }
+      
+      // Count referrals
+      const referralCount = blockchainState.miners.filter(m => m.referrer === miner.address).length;
+      const referredMiners = blockchainState.miners.filter(m => m.referrer === miner.address);
+      
+      const referrerAddr = miner.referrer ? miner.referrer.substring(0, 20) + '...' : 'None (Genesis)';
+      const joinedAgo = Math.floor((Date.now() - miner.joined_at) / 3600000);
+      const estimatedReward = (miner.blocks_mined * 10).toFixed(8);
+      const referralBonus = (referralCount * 0.5).toFixed(8);
+      
+      // Create modal
+      const modal = document.createElement('div');
+      modal.className = 'modal active';
+      modal.innerHTML = `
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2 class="modal-title">Miner Details</h2>
+            <button class="modal-close">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="modal-grid">
+              <div class="modal-section modal-full-width">
+                <h3>Identity</h3>
+                <div class="detail-row">
+                  <span class="detail-label">Address</span>
+                  <span class="detail-value hash-value">${miner.address}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Status</span>
+                  <span class="detail-value" style="color: ${statusColor}; font-weight: 800;">${status}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Joined</span>
+                  <span class="detail-value">${joinedAgo}h ago</span>
+                </div>
+              </div>
+              
+              <div class="modal-section">
+                <h3>Mining Stats</h3>
+                <div class="detail-row">
+                  <span class="detail-label">Blocks Mined</span>
+                  <span class="detail-value" style="color: var(--accent); font-weight: 800;">${miner.blocks_mined}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Last Block</span>
+                  <span class="detail-value">#${miner.last_mined_height}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Blocks Since</span>
+                  <span class="detail-value">${blocksSince} blocks</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Est. Rewards</span>
+                  <span class="detail-value" style="color: var(--ok);">${estimatedReward} KOT</span>
+                </div>
+              </div>
+              
+              <div class="modal-section">
+                <h3>Referral Network</h3>
+                <div class="detail-row">
+                  <span class="detail-label">Referrals Made</span>
+                  <span class="detail-value" style="color: var(--accent); font-weight: 800; font-size: 1.2em;">${referralCount}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Referred By</span>
+                  <span class="detail-value hash-value">${referrerAddr}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Referral Bonus</span>
+                  <span class="detail-value" style="color: var(--warn);">${referralBonus} KOT</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Network Depth</span>
+                  <span class="detail-value">${miner.referrer ? 'Level 2+' : 'Genesis'}</span>
+                </div>
+              </div>
+              
+              <div class="modal-section modal-full-width">
+                <h3>Governance Weight</h3>
+                <div class="detail-row">
+                  <span class="detail-label">Voting Power</span>
+                  <span class="detail-value">${((miner.blocks_mined / blockchainState.height) * 100).toFixed(2)}%</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Proposal Threshold</span>
+                  <span class="detail-value">${miner.blocks_mined >= 10 ? 'Eligible' : 'Need ' + (10 - miner.blocks_mined) + ' more blocks'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      
+      // Close handlers
+      const closeModal = () => {
+        modal.classList.remove('active');
+        setTimeout(() => modal.remove(), 300);
+      };
+      
+      modal.querySelector('.modal-close').addEventListener('click', closeModal);
+      modal.querySelector('.modal-overlay').addEventListener('click', closeModal);
+      
+      // ESC key to close
+      const escHandler = (e) => {
+        if (e.key === 'Escape') {
+          closeModal();
+          document.removeEventListener('keydown', escHandler);
+        }
+      };
+      document.addEventListener('keydown', escHandler);
+    }
+
+    // Initialize
+    window.addEventListener('DOMContentLoaded', () => {
+      const savedTheme = localStorage.getItem('knot-theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+      document.getElementById('theme-toggle').textContent = savedTheme === 'dark' ? '☾' : '☼';
+      
+      initVisualization();
+      fetchBlockchainData();
+      
+      // Update every 5 seconds
+      setInterval(fetchBlockchainData, 5000);
+    });
+  </script>
+</body>
+</html>
