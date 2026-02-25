@@ -95,3 +95,40 @@ verify_final.sh
 
 # Explorer internal docs
 share/explorer/PRODUCTION_READY.md
+
+# Backup files - never commit
+*.bak
+*.backup
+*_backup
+*.private_backup
+*.old
+
+# Test files with potentially sensitive data
+/tmp/test_*.html
+share/explorer/wallet_test.html
+src/bin/test_mnemonic.rs
+
+# Build scripts (internal use)
+build_docker.sh
+build_public_release.sh
+enable_public_p2p.sh
+
+# Documentation files (internal planning, not for public repo)
+ANONYMITY_GUIDE.md
+AUDIT_SUMMARY.md
+AUDIT_VERIFICATION_MATRIX.md
+COMPLETE_ANONYMITY_STRATEGY.md
+COMPLETE_AUDIT_LOG.md
+DEPENDENCY_AND_QUALITY_AUDIT.md
+DILITHIUM_SOLUTION.md
+ENTERPRISE_AUDIT_COMPLETE.md
+GENESIS_COMPLETE_NEXT_STEPS.md
+GENESIS_MINING_CLI_GUIDE.md
+GENESIS_MINING_SUCCESS.md
+GOVERNANCE_REFERRAL_VERIFICATION.md
+LAUNCH_ANNOUNCEMENT.md
+LAUNCH_PLAN.md
+MAINNET_AUDIT_CHECKLIST.md
+MAINNET_READINESS_CHECKLIST.md
+POST_GENESIS_NETWORK_LAUNCH.md
+VERIFIED_AUDIT_SUMMARY.md
