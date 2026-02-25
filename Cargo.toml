@@ -61,6 +61,7 @@ tempfile = "3"
 opt-level = 3
 lto       = true
 codegen-units = 1
+strip     = true  # Remove debug symbols (privacy: no file paths embedded)
 
 [profile.dev]
 opt-level = 0
