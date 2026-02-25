@@ -145,17 +145,23 @@ echo "║   BUILDING FOR LINUX                                       ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo ""
 
-if rustup target list | grep -q "x86_64-unknown-linux-gnu (installed)"; then
-    echo "🐧 Building for Linux x86_64..."
-    cargo build --release --target x86_64-unknown-linux-gnu --bin knotcoind --bin knotcoin-cli
+if rustup target list | grep -q "x86_64-unknown-linux-musl"; then
+    # Add musl target if not installed
+    if ! rustup target list | grep -q "x86_64-unknown-linux-musl (installed)"; then
+        echo "   📦 Installing musl target..."
+        rustup target add x86_64-unknown-linux-musl
+    fi
     
-    cp target/x86_64-unknown-linux-gnu/release/knotcoind "${RELEASE_DIR}/linux-x86_64/"
-    cp target/x86_64-unknown-linux-gnu/release/knotcoin-cli "${RELEASE_DIR}/linux-x86_64/"
+    echo "🐧 Building for Linux x86_64 (musl)..."
+    cargo build --release --target x86_64-unknown-linux-musl --bin knotcoind --bin knotcoin-cli
+    
+    cp target/x86_64-unknown-linux-musl/release/knotcoind "${RELEASE_DIR}/linux-x86_64/"
+    cp target/x86_64-unknown-linux-musl/release/knotcoin-cli "${RELEASE_DIR}/linux-x86_64/"
     echo "   ✅ Linux x86_64 build complete"
 else
-    echo "   ⚠️  Linux target not installed, skipping"
-    echo "   To build for Linux: rustup target add x86_64-unknown-linux-gnu"
-    echo "   Note: May require cross-compilation tools"
+    echo "   ⚠️  Linux musl target not available"
+    echo "   Install: rustup target add x86_64-unknown-linux-musl"
+    echo "   Linker: brew install filosottile/musl-cross/musl-cross"
 fi
 
 # Build for Windows (if cross-compilation is available)
