@@ -9,9 +9,9 @@
 
 use crate::node::db_common::StoredBlock;
 
-/// Mainnet genesis timestamp: Feb 25 2026 00:00:00 UTC
-/// IMPORTANT: This should be set to NOW or a few minutes in the future before mining
-const MAINNET_GENESIS_TIMESTAMP: u32 = 1771545600;
+/// Mainnet genesis timestamp: Feb 25 2026 (updated to current time)
+/// Set to current Unix timestamp for mainnet launch
+const MAINNET_GENESIS_TIMESTAMP: u32 = 1772004727;
 
 /// Mainnet genesis difficulty: easy for the first block.
 fn mainnet_genesis_target() -> [u8; 32] {
@@ -32,9 +32,10 @@ fn mainnet_genesis_target() -> [u8; 32] {
 /// 
 /// DO NOT MINE GENESIS UNTIL THIS IS SET TO A REAL ADDRESS
 fn genesis_miner_address() -> [u8; 32] {
-    // PLACEHOLDER - MUST BE REPLACED BEFORE MINING
-    // This is intentionally an invalid address to prevent accidental mining
-    [0xFFu8; 32]
+    // Genesis miner address: KOT1VXMDA7O3RXH4SJA2OLZUXZHALBTQ6MLEVTBNENAC7N7PG3T2EUGQHZFJBQQ
+    // Generated: Feb 25, 2026
+    // This is the creator's wallet address for receiving the genesis block reward
+    [0xadu8, 0xd8u8, 0x30u8, 0x7du8, 0xdbu8, 0x8du8, 0xcfu8, 0xc9u8, 0x24u8, 0x1au8, 0x72u8, 0xf3u8, 0x4bu8, 0xe4u8, 0xe0u8, 0x58u8, 0x67u8, 0x0fu8, 0x31u8, 0x64u8, 0xacu8, 0xc2u8, 0xd2u8, 0x34u8, 0x02u8, 0xfbu8, 0x7eu8, 0xf3u8, 0x6eu8, 0x7au8, 0x25u8, 0x0du8]
 }
 
 pub fn create_genesis_block() -> StoredBlock {

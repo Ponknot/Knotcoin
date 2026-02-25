@@ -16,7 +16,8 @@ pub const RPC_BIND_ADDRESS: &str = "127.0.0.1";
 pub const RPC_COOKIE_FILE: &str = ".cookie";
 
 /// Bind address for P2P — set to 0.0.0.0 to allow peer discovery (Public Launch)
-pub const P2P_BIND_ADDRESS: &str = "0.0.0.0";
+/// For anonymous genesis mining, set to 127.0.0.1 to disable external connections
+pub const P2P_BIND_ADDRESS: &str = "127.0.0.1";
 
 /// Data directory names
 /// Data directory name
