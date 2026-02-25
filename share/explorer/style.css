@@ -818,3 +818,274 @@ circle.viz-dragging {
 .viz-new-miner {
   animation: viz-glow 2s ease-in-out infinite;
 }
+
+/* Modal Styles */
+.modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1000;
+}
+
+.modal.active {
+  display: block;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(4px);
+}
+
+.modal-content {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  max-width: 900px;
+  width: 90%;
+  max-height: 85vh;
+  overflow: hidden;
+  box-shadow: var(--shadow-glow);
+  animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-alt);
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.modal-close {
+  background: transparent;
+  border: none;
+  color: var(--dim);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.modal-close:hover {
+  background: var(--btn-hover);
+  color: var(--text);
+}
+
+.modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  max-height: calc(85vh - 80px);
+}
+
+.modal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.modal-section {
+  background: var(--panel-alt);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.modal-section h3 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.modal-full-width {
+  grid-column: 1 / -1;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  gap: 12px;
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-label {
+  font-weight: 600;
+  color: var(--dim);
+  white-space: nowrap;
+  min-width: 140px;
+}
+
+.detail-value {
+  color: var(--text);
+  text-align: right;
+  word-break: break-all;
+  flex: 1;
+}
+
+.hash-value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent);
+}
+
+@media (max-width: 768px) {
+  .modal-content {
+    width: 95%;
+    max-height: 90vh;
+  }
+  
+  .modal-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .detail-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .detail-label {
+    min-width: auto;
+  }
+  
+  .detail-value {
+    text-align: left;
+  }
+}
+
+/* Network Visualization Info Panel */
+#network-viz-info.visible {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.viz-info-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 15px;
+  background: var(--panel-alt);
+  border-bottom: 1px solid var(--line);
+  border-radius: 6px 6px 0 0;
+}
+
+.viz-info-title {
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+
+.viz-info-close {
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+  color: var(--dim);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.viz-info-close:hover {
+  background: var(--btn-hover);
+  color: var(--text);
+}
+
+.viz-info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 15px;
+  border-bottom: 1px solid var(--line);
+}
+
+.viz-info-row:last-child {
+  border-bottom: none;
+}
+
+.viz-info-label {
+  color: var(--dim);
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.viz-info-value {
+  color: var(--text);
+  font-weight: 700;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* Copy button in viz info panel */
+.viz-copy-btn {
+  background: var(--btn-bg);
+  border: 1px solid var(--line);
+  color: var(--text);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 14px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.viz-copy-btn:hover {
+  background: var(--btn-hover);
+  border-color: var(--accent);
+}
+
+.viz-copy-btn:active {
+  transform: scale(0.95);
+}

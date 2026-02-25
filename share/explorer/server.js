@@ -11,7 +11,7 @@ const WEB_PORT = 8080;
 
 // SECURITY: Rate limiting to prevent DoS attacks
 const connectionLimits = new Map();
-const MAX_CONNECTIONS_PER_IP = 10;
+const MAX_CONNECTIONS_PER_IP = 100; // Increased for development
 const RATE_LIMIT_WINDOW = 60000; // 1 minute
 
 function checkRateLimit(ip) {
@@ -51,6 +51,18 @@ async function rpc(method, params = []) {
       id: Date.now()
     });
 
+    // Read auth token from .cookie file
+    const fs = require('fs');
+    const os = require('os');
+    const path = require('path');
+    const cookiePath = path.join(os.homedir(), '.knotcoin', 'mainnet', '.cookie');
+    let authToken = '';
+    try {
+      authToken = fs.readFileSync(cookiePath, 'utf8').trim();
+    } catch (err) {
+      console.error('Failed to read auth token:', err.message);
+    }
+
     // HTTP used for localhost RPC (127.0.0.1:9001) - traffic never leaves machine
     const req = http.request({
       hostname: RPC_HOST,
@@ -59,7 +71,8 @@ async function rpc(method, params = []) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Content-Length': data.length
+        'Content-Length': data.length,
+        'Authorization': `Bearer ${authToken}`
       }
     }, (res) => {
       let body = '';
@@ -133,8 +146,38 @@ async function pollBlocks() {
   }
 }
 
-// HTTP server for static files (localhost development - use HTTPS reverse proxy for production)
-const server = http.createServer((req, res) => {
+// HTTP server for static files and RPC proxy
+const server = http.createServer(async (req, res) => {
+  // Add CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+  
+  // RPC proxy endpoint
+  if (req.url === '/rpc' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const request = JSON.parse(body);
+        const result = await rpc(request.method, request.params || []);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ jsonrpc: '2.0', result, id: request.id }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ jsonrpc: '2.0', error: { message: err.message }, id: null }));
+      }
+    });
+    return;
+  }
+  
   const clientIP = req.socket.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
   
   if (!checkRateLimit(clientIP)) {

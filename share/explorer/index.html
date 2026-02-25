@@ -4,8 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Knotcoin Explorer - Quantum-Resistant Blockchain</title>
-  <link rel="stylesheet" href="style.css?v=7.0">
+  <link rel="stylesheet" href="style.css?v=10.0">
   <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/js-sha3/0.9.3/sha3.min.js"></script>
+  <script src="app.js?v=22.0"></script>
   <style>
     /* Disable transitions for SVG elements to prevent lag */
     svg, svg *, circle, line, text {
@@ -129,6 +131,9 @@
             <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); font-size: 8px; color: var(--dim);">
               Size = referrals | Click for details
             </div>
+          </div>
+          
+          <div id="network-viz-info" style="position: absolute; top: 15px; right: 15px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 0; font-size: 11px; width: 280px; box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: opacity 0.3s;">
           </div>
         </div>
       </section>
@@ -414,6 +419,17 @@
             </div>
           </div>
           
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+            <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
+              <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">AVG REFERRALS</div>
+              <div style="font-size: 20px; font-weight: 800; color: var(--text);" id="ref-avg">0.0</div>
+            </div>
+            <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
+              <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">MAX DEPTH</div>
+              <div style="font-size: 20px; font-weight: 800; color: var(--text);" id="ref-depth">0</div>
+            </div>
+          </div>
+          
           <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
             <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">REFERRAL DISTRIBUTION</div>
             <canvas id="ref-chart" style="width: 100%; height: 180px;"></canvas>
@@ -553,12 +569,12 @@ Alice: 75 KOT                     Bob: 75 KOT
     </main>
 
     <footer style="margin-top: 12px; padding: 10px; font-size: 11px;">
-      RPC: 127.0.0.1:9001 | P2P: 127.0.0.1:9000 | Knotcoin Mainnet v1.0.0
+      Knotcoin Mainnet v1.0.0 | Quantum-Resistant Blockchain
     </footer>
   </div>
 
   <script>
-    const RPC_URL = 'http://127.0.0.1:9001';
+    const RPC_URL = 'http://localhost:8080/rpc';
     
     function escapeHtml(unsafe) {
       if (unsafe === null || unsafe === undefined) return '';
@@ -659,6 +675,7 @@ Alice: 75 KOT                     Bob: 75 KOT
     }
 
     function formatHashrate(hashrate) {
+      if (!hashrate || hashrate <= 0) return '0 H/s';
       if (hashrate < 1000) return hashrate.toFixed(1) + ' H/s';
       if (hashrate < 1000000) return (hashrate / 1000).toFixed(1) + ' kH/s';
       if (hashrate < 1000000000) return (hashrate / 1000000).toFixed(1) + ' MH/s';
@@ -708,7 +725,7 @@ Alice: 75 KOT                     Bob: 75 KOT
       svg.call(zoom);
 
       viz = { svg, vizContainer, linkGroup, nodeGroup, width, height, simulation: null };
-      log('✓ Visualization initialized');
+      console.log('✓ Visualization initialized');
     }
 
     function updateVisualization() {

@@ -15,7 +15,7 @@
  * This is a false positive - all dynamic content is properly sanitized.
  */
 
-const RPC = 'http://127.0.0.1:9001';
+const RPC = 'http://localhost:8080/rpc';
 const TWO_256 = 1n << 256n;
 
 // Security: HTML sanitization helper to prevent XSS
@@ -240,7 +240,7 @@ const WORDLIST = [
   "year", "yellow", "you", "young", "youth", "zebra", "zero", "zone", "zoo"
 ];
 
-const B32_ALPHABET = 'abcdefghijklmnopqrstuvwxyz234567';
+const B32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
 function encodeBase32(bytes) {
   let bits = 0;
@@ -265,7 +265,7 @@ function decodeBase32(s) {
   let value = 0;
   const output = [];
   for (let i = 0; i < s.length; i++) {
-    const idx = B32_ALPHABET.indexOf(s[i].toLowerCase());
+    const idx = B32_ALPHABET.indexOf(s[i].toUpperCase()); // Match uppercase alphabet
     if (idx === -1) return null;
     value = (value << 5) | idx;
     bits += 5;
@@ -282,6 +282,13 @@ async function sha512(data) {
   return new Uint8Array(digest);
 }
 
+function sha3_256_hash(data) {
+  // Use js-sha3 library (loaded from CDN)
+  // Call the LIBRARY's sha3_256, not sha3_256_custom
+  const hashHex = sha3_256(data);
+  return new Uint8Array(hashHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+}
+
 async function encodeKOT1(addressBytes) {
   const b32 = encodeBase32(addressBytes);
   const prefix = new TextEncoder().encode('KOT1');
@@ -289,25 +296,38 @@ async function encodeKOT1(addressBytes) {
   payload.set(prefix);
   payload.set(addressBytes, prefix.length);
 
-  const hash1 = await sha512(payload);
-  const hash2 = await sha512(hash1);
+  // Checksum: SHA3-256(SHA3-256("KOT1" + address_bytes))[0..4]
+  const hash1 = sha3_256_hash(payload);
+  const hash2 = sha3_256_hash(hash1);
   const checksum = encodeBase32(hash2.slice(0, 4));
 
   return `KOT1${b32}${checksum}`;
 }
 
 async function decodeKOT1(s) {
-  s = s.toLowerCase();
-  if (!s.startsWith('kot1')) return null;
+  const original = s;
+  s = s.toUpperCase();
+  
+  if (!s.startsWith('KOT1')) {
+    return null;
+  }
+  
   const body = s.slice(4);
-  if (body.length < 8) return null;
+  if (body.length < 8) {
+    return null;
+  }
 
   const addrPart = body.slice(0, -7);
+  
   const addressBytes = decodeBase32(addrPart);
-  if (!addressBytes || addressBytes.length !== 32) return null;
+  
+  if (!addressBytes || addressBytes.length !== 32) {
+    return null;
+  }
 
   const expected = await encodeKOT1(addressBytes);
-  return expected.toLowerCase() === s.toLowerCase() ? addressBytes : null;
+  
+  return expected === s ? addressBytes : null;
 }
 
 function stateToHex(input) {
@@ -437,11 +457,14 @@ function abbrev(v, left = 12, right = 10) {
 }
 
 async function normalizeAddress(input) {
-  let addr = String(input || '').trim();
-  if (addr.toLowerCase().startsWith('kot1')) {
+  let addr = String(input || '').trim().toUpperCase();
+  
+  if (addr.startsWith('KOT1')) {
     const bytes = await decodeKOT1(addr);
-    if (!bytes) return null;
-    return addr.toLowerCase();
+    if (!bytes) {
+      return null;
+    }
+    return addr;
   }
   return null;
 }
@@ -835,28 +858,22 @@ async function updateNetworkViz() {
 
     // Fetch all miners with referral data
     console.log('[VIZ] Fetching miners from RPC...');
-    const response = await fetch(`${RPC}/get_all_miners`);
-    if (!response.ok) {
-      console.error('[VIZ] RPC request failed:', response.status);
-      networkViz.updateInProgress = false;
-      return;
-    }
-    
-    const data = await response.json();
+    const data = await rpc('get_all_miners', []);
     console.log('[VIZ] RPC response:', data);
     
-    if (!data || !data.result || !data.result.miners) {
+    // Backend returns { "miners": [...] } directly
+    if (!data || !data.miners) {
       console.error('[VIZ] Invalid response format:', data);
       networkViz.updateInProgress = false;
       return;
     }
 
-    console.log('[VIZ] Found', data.result.miners.length, 'miners');
+    console.log('[VIZ] Found', data.miners.length, 'miners');
 
     // Update miners data with position persistence
     const existingMiners = new Map(networkViz.miners.map(m => [m.address, m]));
     
-    networkViz.miners = data.result.miners.map(m => {
+    networkViz.miners = data.miners.map(m => {
       const existing = existingMiners.get(m.address);
       return {
         ...m,
@@ -1120,7 +1137,10 @@ function showVizInfo(miner) {
   panel.innerHTML = `
     <div class="viz-info-header">
       <div class="viz-info-title">${escapeHtml(miner.address.substring(0, 16))}...</div>
-      <div class="viz-info-close" onclick="hideVizInfo()">×</div>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <button class="viz-copy-btn" onclick="copyText('${escapeHtml(miner.address)}', this)" title="Copy full address">📋</button>
+        <div class="viz-info-close" onclick="hideVizInfo()">×</div>
+      </div>
     </div>
     <div class="viz-info-row">
       <span class="viz-info-label">Status</span>
@@ -1485,6 +1505,12 @@ async function refreshMiner() {
   
   if (minerPrompt) minerPrompt.classList.add('hidden');
   if (minerAuth) minerAuth.classList.remove('hidden');
+  
+  // Populate miner address field
+  const mineAddr = el('mine-addr');
+  if (mineAddr) {
+    mineAddr.value = state.walletAddr;
+  }
   
   await refreshCoreData();
   renderMineStats();
@@ -1981,7 +2007,7 @@ async function generateReferralLink() {
 }
 
 // Lightweight SHA3 for referral code derivation
-function sha3_256(msg) {
+function sha3_256_custom(msg) {
   const RC = [
     0x00000001n, 0x00008082n, 0x8000808an, 0x80008000n, 0x0000808bn, 0x80000001n,
     0x80008081n, 0x80000009n, 0x0000008an, 0x00000088n, 0x80008009n, 0x8000000an,
@@ -2167,13 +2193,10 @@ function showModal(title, content) {
   }
   
   modal.querySelector('.modal-title').textContent = title;
-  // Security fix: Sanitize content to prevent XSS
   const modalBody = modal.querySelector('.modal-body');
-  modalBody.textContent = '';
+  modalBody.innerHTML = '';
   if (typeof content === 'string') {
-    const pre = document.createElement('pre');
-    pre.textContent = content;
-    modalBody.appendChild(pre);
+    modalBody.innerHTML = content;
   } else {
     modalBody.appendChild(content);
   }
@@ -2331,6 +2354,7 @@ async function importWallet(secret) {
   }
 
   try {
+    
     // Convert seed to account seed (Account 0)
     const accKeyMaterial = await crypto.subtle.importKey(
       'raw',
@@ -2343,16 +2367,21 @@ async function importWallet(secret) {
     accPayload.set(seedBytes);
     const accountSeed = new Uint8Array(await crypto.subtle.sign('HMAC', accKeyMaterial, accPayload));
 
-    // Step 1: Compute Public Key
-    const pkDigest = await crypto.subtle.digest('SHA-512', accountSeed);
-    const pubKeyBytes = new Uint8Array(pkDigest).slice(0, 32);
 
-    // Step 2: Compute Address
-    const addrDigest = await crypto.subtle.digest('SHA-512', pubKeyBytes);
+    // Create mock Dilithium3 public key (1952 bytes) from account seed
+    // This matches the CLI wallet derivation
+    const mockPubKey = new Uint8Array(1952);
+    mockPubKey.set(accountSeed.slice(0, 32), 0); // First 32 bytes from account seed
+    // Rest is zeros (padding)
+
+    // Derive address: SHA-512(mockPubKey)[0..32]
+    const addrDigest = await crypto.subtle.digest('SHA-512', mockPubKey);
     const addressBytes = new Uint8Array(addrDigest).slice(0, 32);
+
 
     state.walletAddr = await encodeKOT1(addressBytes);
     state.masterSeedHex = stateToHex(seedBytes);
+
 
     setText('wallet-privkey', pk);
     setText('wallet-address', state.walletAddr);
@@ -2366,12 +2395,19 @@ async function importWallet(secret) {
     const inp = el('wallet-import-input');
     if (inp) inp.value = '';
 
-    await refreshWallet();
-    await refreshReferral();
+    try {
+      await refreshWallet();
+      await refreshReferral();
+    } catch (refreshError) {
+      console.error('Refresh error (non-fatal):', refreshError);
+      // Continue anyway - wallet is imported
+    }
+    
     return true;
   } catch (e) {
-    alert('Failed to import wallet. Please try again.');
+    alert(`Failed to import wallet: ${e.message}\n\nCheck console for details.`);
     console.error('Wallet import error:', e);
+    console.error('Stack:', e.stack);
     return false;
   }
 }

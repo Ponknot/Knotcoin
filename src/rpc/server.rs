@@ -142,6 +142,14 @@ async fn handle_rpc(state: &RpcState, method: &str, params: &Value) -> Result<Va
             }))
         }
 
+        "getmempoolinfo" => {
+            let pool_size = state.mempool.lock().await.size();
+            Ok(json!({
+                "size": pool_size,
+                "bytes": 0,
+            }))
+        }
+
         "getrawmempool" => {
             let pool = state.mempool.lock().await;
             let ids: Vec<String> = pool.get_all_txids().iter().map(hex::encode).collect();
