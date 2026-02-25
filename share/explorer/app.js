@@ -542,20 +542,21 @@ function supplyAt(height) {
   const p1End = 262800;
   const p2End = 525600;
   if (h <= p1End) {
-    // Integral of 0.1 + (0.9 * x / p1End) from 0 to h
+    // Sum from block 0 to h: each block i gives 0.1 + (0.9 * i / p1End)
+    // Total = (h+1) * 0.1 + 0.9 * sum(i from 0 to h) / p1End
+    // sum(i from 0 to h) = h * (h+1) / 2
     return (h + 1) * 0.1 + (0.9 * h * (h + 1)) / (2 * p1End);
   }
   if (h <= p2End) {
-    return supplyAt(p1End) + (h - p1End);
+    // Phase 1 supply + Phase 2 blocks (each gives 1.0 KOT)
+    return supplyAt(p1End) + (h - p1End) * 1.0;
   }
 
-  // For heights after p2End, we use a cached value for p2End supply + simplified approximation
-  // In a real explorer, this should come from the node's RPC for accuracy.
+  // Phase 3: decay formula
   let s = supplyAt(p2End);
   if (h > p2End) {
     const adjusted = h - p2End;
-    // Approximation: the sum of 1/log2(x+2) is roughly (h-p2End) / log2((h-p2End)/2 + 2)
-    // but for simplicity we'll just show the decay start.
+    // Approximation for sum of 1/log2(i+2) from i=1 to adjusted
     s += adjusted / Math.log2(adjusted / 2 + 2);
   }
   return s;
