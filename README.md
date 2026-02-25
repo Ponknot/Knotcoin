@@ -22,75 +22,98 @@ Deploy once, run forever. No foundation, no team, no updates required.
 
 ## Quick Start
 
-### 1. Download & Verify
+### 1. Download & Extract
 
-Get the latest release for your platform and verify the checksum:
+Get the latest release for your platform:
 
 **macOS (Apple Silicon)**
 ```bash
-wget https://github.com/Ponknot/Knotcoin/releases/download/v1.0.0/knotcoind-macos-arm64
-chmod +x knotcoind-macos-arm64
-shasum -a 256 knotcoind-macos-arm64
-# Expected: ead0db122b7544d84e83595901959c51b15348a3bd9e8c1375d8e69270bb26e1
+wget https://github.com/Ponknot/Knotcoin/releases/download/v1.0.0/knotcoin-v1.0.0-macos-apple-silicon.tar.gz
+tar -xzf knotcoin-v1.0.0-macos-apple-silicon.tar.gz
+cd knotcoin-v1.0.0-macos-apple-silicon
 ```
 
 **macOS (Intel)**
 ```bash
-wget https://github.com/Ponknot/Knotcoin/releases/download/v1.0.0/knotcoind-macos-intel
-chmod +x knotcoind-macos-intel
-shasum -a 256 knotcoind-macos-intel
-# Expected: 12014ed16ef7baad13ac1ce0009cb174be0faca74dfb98c6ae3ede46650a7c60
+wget https://github.com/Ponknot/Knotcoin/releases/download/v1.0.0/knotcoin-v1.0.0-macos-intel.tar.gz
+tar -xzf knotcoin-v1.0.0-macos-intel.tar.gz
+cd knotcoin-v1.0.0-macos-intel
 ```
 
 **Linux (x86_64)**
 ```bash
-wget https://github.com/Ponknot/Knotcoin/releases/download/v1.0.0/knotcoind-linux-x86_64
-chmod +x knotcoind-linux-x86_64
-sha256sum knotcoind-linux-x86_64
-# Expected: 1a895f0be6a352d6b93c1b67d2f85a6d2d38cd67cc372ff2d25d2cfd7e407643
+wget https://github.com/Ponknot/Knotcoin/releases/download/v1.0.0/knotcoin-v1.0.0-linux-x86_64.tar.gz
+tar -xzf knotcoin-v1.0.0-linux-x86_64.tar.gz
+cd knotcoin-v1.0.0-linux-x86_64
 ```
 
 **Windows (x86_64)**
 ```powershell
-# Download from: https://github.com/Ponknot/Knotcoin/releases/download/v1.0.0/knotcoind-windows-x86_64.exe
-# Verify with: certutil -hashfile knotcoind-windows-x86_64.exe SHA256
-# Expected: 40b056b7d4bf9d3a16cc9d20e93d0eb813c85c6e5a2f2b1ec06e802514d3e7db
+# Download: https://github.com/Ponknot/Knotcoin/releases/download/v1.0.0/knotcoin-v1.0.0-windows-x86_64.tar.gz
+# Extract using 7-Zip or Windows built-in tar:
+tar -xzf knotcoin-v1.0.0-windows-x86_64.tar.gz
+cd knotcoin-v1.0.0-windows-x86_64
 ```
 
-**IMPORTANT**: Verify checksums before running. Mismatched checksums mean corrupted or tampered files.
-
-### 2. Run the Binary
+### 2. Verify Checksums (Important!)
 
 **macOS/Linux:**
 ```bash
-./knotcoind-macos-arm64  # or knotcoind-macos-intel or knotcoind-linux-x86_64
+shasum -a 256 knotcoin-v1.0.0-*.tar.gz
+```
+
+**Expected checksums:**
+```
+2dcfbbe044a8cfa7f20b39695cf3662b3eb9f1e6410a77961c8fadcaf0202cbc  knotcoin-v1.0.0-macos-apple-silicon.tar.gz
+7a4bdd44923a6ca6c07c239b281254d0bbaae9578407392666d31f6398583ff2  knotcoin-v1.0.0-macos-intel.tar.gz
+6f59b4e72eafb60075df373d8fb929bd325c7bccc340c645853287ad75fc1561  knotcoin-v1.0.0-linux-x86_64.tar.gz
+edcec36dfc4a1aeb4c94d24e7be9f11a22acaac18a612d73d215de8e0f912be8  knotcoin-v1.0.0-windows-x86_64.tar.gz
+```
+
+**IMPORTANT**: Verify checksums match before running. Mismatched checksums mean corrupted or tampered files.
+
+### 3. Run the Node
+
+**macOS/Linux:**
+```bash
+chmod +x knotcoind knotcoin-cli
+./knotcoind
 ```
 
 **Windows:**
 ```cmd
-knotcoind-windows-x86_64.exe
+knotcoind.exe
 ```
 
 The node will:
-- Create a data directory at `~/.knotcoin/mainnet`
+- Create data directory at `~/.knotcoin/mainnet`
 - Start syncing the blockchain
-- Open RPC server on port 9001
-- Open P2P server on port 9000
+- Open RPC server on port 9001 (localhost only)
+- Open P2P server on port 9000 (public)
 
-### 3. Open the Explorer
+### 4. Open the Explorer
 
-Open your browser and go to:
+The release includes a built-in web explorer. Open it in your browser:
+
+**Option 1: Direct file access**
 ```
-file:///path/to/knotcoin/share/explorer/index.html
+file:///path/to/knotcoin-v1.0.0-[platform]/explorer/index.html
 ```
 
-Or use Python's built-in server:
+**Option 2: Local web server (recommended)**
 ```bash
-cd share/explorer
+cd explorer
 python3 -m http.server 8080
 ```
 
 Then visit: `http://localhost:8080`
+
+The explorer connects to your local node via RPC and shows:
+- Live blockchain data
+- Network visualization
+- Wallet management
+- Mining interface
+- Block explorer
 
 ---
 

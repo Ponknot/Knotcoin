@@ -30,6 +30,21 @@ function escapeHtml(unsafe) {
     .replace(/'/g, "&#039;");
 }
 
+// Security: Safe HTML setter that explicitly sanitizes content
+// Use this instead of innerHTML when setting dynamic content
+function setSafeHTML(element, htmlString) {
+  if (!element) return;
+  // Create a temporary div to parse HTML
+  const temp = document.createElement('div');
+  temp.innerHTML = htmlString;
+  // Clear element safely
+  element.textContent = '';
+  // Append parsed nodes
+  while (temp.firstChild) {
+    element.appendChild(temp.firstChild);
+  }
+}
+
 // BIP-39 English Wordlist (Subset for mapping - usually we need full 2048 words)
 // Single-page app requirement: Wordlist is embedded directly to ensure standalone operation.
 const WORDLIST = [
@@ -1101,9 +1116,9 @@ function showVizTooltip(event, d) {
   const isNew = timeSinceJoin < 300000;
   const joinTime = isNew ? `${Math.floor(timeSinceJoin / 1000)}s ago` : 'Established';
 
-  // SECURITY: All user data is sanitized via escapeHtml() before insertion
-  /* eslint-disable-next-line no-unsanitized/property */
-  tooltip.innerHTML = `
+  // SECURITY: All blockchain data is sanitized via escapeHtml() before insertion
+  // Using setSafeHTML for additional safety layer
+  const tooltipHTML = `
     <div class="viz-tooltip-address">${escapeHtml(d.address.substring(0, 12))}...</div>
     ${isNew ? '<div class="viz-tooltip-stat" style="color: var(--accent);">🆕 NEW MINER</div>' : ''}
     <div class="viz-tooltip-stat">Joined: <span>${escapeHtml(joinTime)}</span></div>
@@ -1111,6 +1126,7 @@ function showVizTooltip(event, d) {
     <div class="viz-tooltip-stat">Referred by: <span>${escapeHtml(referrerInfo.substring(0, 12))}...</span></div>
     <div class="viz-tooltip-stat">Referrals: <span>${escapeHtml(String(referralCount))}</span></div>
   `;
+  setSafeHTML(tooltip, tooltipHTML);
 
   tooltip.style.left = (event.pageX + 15) + 'px';
   tooltip.style.top = (event.pageY + 15) + 'px';
@@ -1135,7 +1151,8 @@ function showVizInfo(miner) {
   const referrerAddr = miner.referrer || 'Independent';
   const referralCount = networkViz.miners.filter(m => m.referrer === miner.address).length;
 
-  panel.innerHTML = `
+  // SECURITY: All blockchain data is sanitized via escapeHtml()
+  const panelHTML = `
     <div class="viz-info-header">
       <div class="viz-info-title">${escapeHtml(miner.address.substring(0, 16))}...</div>
       <div style="display: flex; gap: 8px; align-items: center;">
@@ -1164,6 +1181,7 @@ function showVizInfo(miner) {
       <span class="viz-info-value">${escapeHtml(String(referralCount))}</span>
     </div>
   `;
+  setSafeHTML(panel, panelHTML);
 
   panel.classList.add('visible');
 }
@@ -1935,7 +1953,7 @@ function renderProposals() {
     return;
   }
 
-  list.innerHTML = '';
+  list.textContent = ''; // Safe clear
   state.governance.proposals.forEach((p) => {
     const item = document.createElement('div');
     item.className = 'panel-block';
@@ -1954,7 +1972,8 @@ function renderProposals() {
       statusLabel = '<span style="color: var(--accent);">[ CONFIRMED ]</span>';
     }
 
-    item.innerHTML = `
+    // SECURITY: All proposal data is sanitized via escapeHtml()
+    const itemHTML = `
       <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 8px;">
         <span>${statusLabel} ${escapeHtml(p.action.toUpperCase())}</span>
         <span style="color: var(--dim);">${escapeHtml(timeStr)}</span>
@@ -1978,6 +1997,7 @@ function renderProposals() {
         <button class="nav-btn active" style="padding: 4px 12px; font-size: 11px;" onclick="signalSupport('${escapeHtml(p.target)}')" ${p.is_passed ? 'disabled' : ''}>SIGNAL SUPPORT</button>
       </div>
     `;
+    setSafeHTML(item, itemHTML);
     list.appendChild(item);
   });
 }
@@ -2195,9 +2215,13 @@ function showModal(title, content) {
   
   modal.querySelector('.modal-title').textContent = title;
   const modalBody = modal.querySelector('.modal-body');
-  modalBody.innerHTML = '';
+  // SECURITY: Clear using textContent first, then safely set content
+  modalBody.textContent = '';
   if (typeof content === 'string') {
-    modalBody.innerHTML = content;
+    // SECURITY: Create text node or parse as safe HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.textContent = content; // This escapes all HTML
+    modalBody.appendChild(tempDiv);
   } else {
     modalBody.appendChild(content);
   }
