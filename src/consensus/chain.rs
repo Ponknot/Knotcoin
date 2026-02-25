@@ -38,8 +38,9 @@ fn phase1_reward(height: u64) -> u64 {
 pub fn calculate_governance_weight(total_contributions: u64) -> u64 {
     if total_contributions == 0 { return 100; }
     // Approximation: 100 + 100 * log10(n)
-    // log10(n) ~= digits - 1
-    let digits = total_contributions.to_string().len() as u64;
+    // SECURITY FIX: Use ilog10() instead of to_string().len() to avoid heap allocation DoS
+    // This prevents memory exhaustion attacks during governance tally validation
+    let digits = total_contributions.ilog10() as u64 + 1;
     100 + 100 * (digits - 1)
 }
 
@@ -50,8 +51,13 @@ fn phase3_reward(height: u64) -> u64 {
 
     let ilog = x.ilog2();
     let mut val = (ilog as u64) << 16;
-    
-    let mut f = x << (62 - ilog);
+
+    // SECURITY FIX: Use saturating_sub to prevent underflow panic
+    // While practically impossible (requires 4.6 quintillion blocks),
+    // this ensures formal safety against edge cases and testnet manipulation
+    let shift_amount = 62u32.saturating_sub(ilog);
+    let mut f = x << shift_amount;
+
     for i in (0..16).rev() {
         let f128 = f as u128;
         f = ((f128 * f128) >> 62) as u64;
@@ -60,7 +66,7 @@ fn phase3_reward(height: u64) -> u64 {
             f >>= 1;
         }
     }
-    
+
     (KNOTS_PER_KOT << 16) / val
 }
 

@@ -15,17 +15,18 @@ use tokio::net::TcpListener;
 use tokio::time::{Duration, timeout};
 use tokio::sync::Mutex;
 
-use crate::config::RPC_BIND_ADDRESS;
+use crate::config::{RPC_BIND_ADDRESS, RPC_COOKIE_FILE};
 use crate::consensus::state::block_hash;
 use crate::net::mempool::Mempool;
 use crate::net::node::P2pCommand;
-use crate::node::db::ChainDB;
+use crate::node::ChainDB;
 
 pub struct RpcState {
     pub db: ChainDB,
     pub mempool: Arc<Mutex<Mempool>>,
     pub shutdown: AtomicBool,
     pub p2p_tx: tokio::sync::mpsc::UnboundedSender<P2pCommand>,
+    pub auth_token: String, // SECURITY: Bearer token for RPC authentication
 }
 
 async fn handle_rpc(state: &RpcState, method: &str, params: &Value) -> Result<Value, (i32, String)> {
@@ -151,7 +152,7 @@ async fn handle_rpc(state: &RpcState, method: &str, params: &Value) -> Result<Va
             let hex_str = params.get(0).and_then(|v| v.as_str()).ok_or((-32602, "hex required".to_string()))?;
             let raw = hex::decode(hex_str).map_err(|_| (-32602, "invalid hex".to_string()))?;
             
-            let stx = crate::node::db::StoredTransaction::from_bytes(&raw)
+            let stx = crate::node::db_common::StoredTransaction::from_bytes(&raw)
                 .map_err(|e| (-32602, format!("deserialization failed: {e}")))?;
             
             {
@@ -370,24 +371,16 @@ async fn handle_rpc(state: &RpcState, method: &str, params: &Value) -> Result<Va
 
             let mut miners = Vec::new();
 
-            for item in state.db.accounts.iter() {
-                let (addr_bytes, acc_bytes) = match item {
-                    Ok((k, v)) => (k, v),
-                    Err(_) => continue,
-                };
-
-                if addr_bytes.len() != 32 {
-                    continue;
+            // Iterate over all accounts using the new iterator method
+            let accounts = match state.db.iter_accounts() {
+                Ok(accts) => accts,
+                Err(e) => {
+                    eprintln!("Failed to iterate accounts: {}", e);
+                    return Ok(json!({ "miners": [] }));
                 }
+            };
 
-                let mut addr = [0u8; 32];
-                addr.copy_from_slice(&addr_bytes);
-
-                let acc = match crate::node::db::AccountState::from_bytes(&acc_bytes) {
-                    Ok(a) => a,
-                    Err(_) => continue,
-                };
-
+            for (addr, acc) in accounts {
                 if acc.total_blocks_mined == 0 {
                     continue;
                 }
@@ -462,8 +455,20 @@ async fn handle_request(
         let builder = Response::builder()
             .header("Access-Control-Allow-Origin", "*")
             .header("Access-Control-Allow-Methods", "POST, OPTIONS")
-            .header("Access-Control-Allow-Headers", "Content-Type");
+            .header("Access-Control-Allow-Headers", "Content-Type, Authorization");
         return Ok(builder.body(Full::new(Bytes::new())).unwrap());
+    }
+
+    // SECURITY FIX: Verify bearer token authentication
+    // Protects against SSRF and DNS rebinding attacks from malicious browser JavaScript
+    let auth_header = req.headers().get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+    
+    if !auth_header.starts_with("Bearer ") || auth_header[7..] != state.auth_token {
+        let mut res = Response::new(Full::new(Bytes::from("Unauthorized")));
+        *res.status_mut() = hyper::StatusCode::UNAUTHORIZED;
+        return Ok(res);
     }
 
     let body = match req.collect().await {
@@ -538,3 +543,41 @@ pub async fn start_rpc_server(
     }
     Ok(())
 }
+/// Generate or load RPC authentication token
+/// SECURITY: Creates a high-entropy bearer token to prevent SSRF/DNS rebinding attacks
+pub fn generate_rpc_auth_token(data_dir: &str) -> Result<String, std::io::Error> {
+    use std::fs;
+    use std::path::Path;
+
+    let cookie_path = Path::new(data_dir).join(RPC_COOKIE_FILE);
+
+    // Try to read existing cookie
+    if let Ok(token) = fs::read_to_string(&cookie_path) {
+        let token = token.trim();
+        if token.len() >= 32 {
+            return Ok(token.to_string());
+        }
+    }
+
+    // Generate new high-entropy token (32 bytes = 64 hex chars)
+    use crate::crypto::hash::hash_sha3_256;
+    let random_bytes: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
+    let hash = hash_sha3_256(&random_bytes);
+    let token = hex::encode(&hash[..32]);
+
+    // Save to cookie file
+    fs::write(&cookie_path, &token)?;
+
+    // Set restrictive permissions (Unix only)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(&cookie_path)?.permissions();
+        perms.set_mode(0o600); // Read/write for owner only
+        fs::set_permissions(&cookie_path, perms)?;
+    }
+
+    Ok(token)
+}
+
+

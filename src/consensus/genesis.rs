@@ -7,7 +7,7 @@
 // Dilithium3 keypair. The creator must have the corresponding private key to
 // spend the genesis reward.
 
-use crate::node::db::StoredBlock;
+use crate::node::db_common::StoredBlock;
 
 /// Mainnet genesis timestamp: Feb 25 2026 00:00:00 UTC
 /// IMPORTANT: This should be set to NOW or a few minutes in the future before mining

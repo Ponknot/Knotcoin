@@ -9,7 +9,7 @@ use tokio::net::{TcpListener, TcpStream};
 use crate::config::P2P_BIND_ADDRESS;
 use crate::consensus::state::{apply_block, block_hash};
 use crate::net::protocol::{FramedStream, NetworkMessage};
-use crate::node::db::{StoredBlock, ChainDB};
+use crate::node::{ChainDB, db_common::StoredBlock};
 use crate::net::mempool::Mempool;
 use crate::rpc::server::RpcState;
 
@@ -366,7 +366,7 @@ async fn handle_msg(
         }
         NetworkMessage::Tx(raw) => {
             let mut pool = mempool.lock().await;
-            if let Ok(stx) = crate::node::db::StoredTransaction::from_bytes(&raw)
+            if let Ok(stx) = crate::node::db_common::StoredTransaction::from_bytes(&raw)
                 && pool.add_transaction(stx.0).is_ok() {
                 let _ = broadcast_tx.send(NetworkMessage::Tx(raw));
             }

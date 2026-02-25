@@ -12,6 +12,9 @@ pub const MAX_MESSAGE_SIZE: usize = 1_048_576;
 /// Bind address for RPC — set to 127.0.0.1 for local-only access (Security)
 pub const RPC_BIND_ADDRESS: &str = "127.0.0.1";
 
+/// RPC authentication cookie filename
+pub const RPC_COOKIE_FILE: &str = ".cookie";
+
 /// Bind address for P2P — set to 0.0.0.0 to allow peer discovery (Public Launch)
 pub const P2P_BIND_ADDRESS: &str = "0.0.0.0";
 

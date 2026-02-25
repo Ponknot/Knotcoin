@@ -115,9 +115,19 @@ const server = http.createServer((req, res) => {
   
   // Remove query string
   filePath = filePath.split('?')[0];
-  filePath = path.join(__dirname, filePath);
+  
+  // Security: Normalize and validate path to prevent directory traversal
+  const normalizedPath = path.normalize(filePath).replace(/^(\.\.[\/\\])+/, '');
+  const safePath = path.join(__dirname, normalizedPath);
+  
+  // Ensure the resolved path is within the allowed directory
+  if (!safePath.startsWith(__dirname)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('403 Forbidden');
+    return;
+  }
 
-  const ext = path.extname(filePath);
+  const ext = path.extname(safePath);
   const contentTypes = {
     '.html': 'text/html; charset=utf-8',
     '.js': 'text/javascript; charset=utf-8',
@@ -131,7 +141,7 @@ const server = http.createServer((req, res) => {
 
   const contentType = contentTypes[ext] || 'text/plain';
 
-  fs.readFile(filePath, (err, content) => {
+  fs.readFile(safePath, (err, content) => {
     if (err) {
       if (err.code === 'ENOENT') {
         res.writeHead(404, { 'Content-Type': 'text/plain' });

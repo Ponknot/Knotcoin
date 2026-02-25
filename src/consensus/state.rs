@@ -4,7 +4,7 @@ use crate::consensus::chain::{
 };
 use crate::crypto::hash::hash_sha3_256;
 use crate::crypto::ponc::ffi::bridge::new_ponc_engine;
-use crate::node::db::{ChainDB, StoredBlock};
+use crate::node::{ChainDB, db_common::StoredBlock};
 use crate::primitives::transaction::Transaction;
 
 #[derive(Debug, Clone)]
@@ -30,7 +30,7 @@ pub enum StateError {
     SelfReferral,
     InvalidCoinbase,
     MathOverflow,
-    Storage(sled::Error),
+    DatabaseError(String),
     InvalidPoW,
     InvalidTransaction(&'static str),
     BlockInPast,
@@ -48,7 +48,7 @@ impl std::fmt::Display for StateError {
             StateError::SelfReferral => write!(f, "cannot refer yourself"),
             StateError::InvalidCoinbase => write!(f, "invalid coinbase"),
             StateError::MathOverflow => write!(f, "mathematical overflow"),
-            StateError::Storage(e) => write!(f, "storage: {e}"),
+            StateError::DatabaseError(e) => write!(f, "database: {e}"),
             StateError::InvalidPoW => write!(f, "invalid proof-of-work hash"),
             StateError::InvalidTransaction(e) => {
                 write!(f, "transaction validation failed: {e}")
@@ -62,14 +62,19 @@ impl std::fmt::Display for StateError {
 impl std::error::Error for StateError {}
 
 // MANUALLY JUSTIFIED UNSAFE BLOCKS
-// StateError wraps sled::Error, which is thread-safe in practice, but
-// manual Send/Sync are required for seamless async propagation.
+// StateError is thread-safe for async propagation
 unsafe impl Send for StateError {}
 unsafe impl Sync for StateError {}
 
-impl From<sled::Error> for StateError {
-    fn from(e: sled::Error) -> Self {
-        StateError::Storage(e)
+impl From<crate::node::db_rocksdb::DbError> for StateError {
+    fn from(e: crate::node::db_rocksdb::DbError) -> Self {
+        StateError::DatabaseError(e.to_string())
+    }
+}
+
+impl From<rocksdb::Error> for StateError {
+    fn from(e: rocksdb::Error) -> Self {
+        StateError::DatabaseError(e.to_string())
     }
 }
 
@@ -86,9 +91,7 @@ pub fn verify_block_pow(block: &StoredBlock, db: &ChainDB) -> Result<(), StateEr
     let mut engine = new_ponc_engine();
     
     // Get current PONC rounds from governance params
-    let params = db.get_governance_params().map_err(|_| StateError::Storage(
-        sled::Error::Unsupported("failed to read governance params".to_string())
-    ))?;
+    let params = db.get_governance_params()?;
     engine.pin_mut().set_rounds(params.ponc_rounds as usize);
     
     engine
@@ -153,11 +156,11 @@ pub fn apply_block(db: &ChainDB, block: &StoredBlock) -> Result<(), StateError> 
     // 2. Calculate Rewards
     let base_reward = calculate_block_reward(height);
 
-    let mut account_updates: std::collections::HashMap<[u8; 32], crate::node::db::AccountState> = std::collections::HashMap::new();
+    let mut account_updates: std::collections::HashMap<[u8; 32], crate::node::db_common::AccountState> = std::collections::HashMap::new();
     let mut tally_updates: std::collections::HashMap<[u8; 32], u64> = std::collections::HashMap::new();
     let mut vote_keys = Vec::new();
 
-    let get_account_local = |addr: &[u8; 32], updates: &std::collections::HashMap<[u8; 32], crate::node::db::AccountState>, db: &ChainDB| -> crate::node::db::AccountState {
+    let get_account_local = |addr: &[u8; 32], updates: &std::collections::HashMap<[u8; 32], crate::node::db_common::AccountState>, db: &ChainDB| -> crate::node::db_common::AccountState {
         updates.get(addr).cloned().unwrap_or_else(|| db.get_account(addr).unwrap_or_default())
     };
 
@@ -253,40 +256,50 @@ pub fn apply_block(db: &ChainDB, block: &StoredBlock) -> Result<(), StateError> 
     miner_with_fees.balance = miner_with_fees.balance.checked_add(fees).ok_or(StateError::MathOverflow)?;
     account_updates.insert(block.miner_address, miner_with_fees);
 
-    // 5. Build and Apply Batches
-    let mut b_accounts = sled::Batch::default();
-    let mut b_ref = sled::Batch::default();
-    let mut b_tallies = sled::Batch::default();
-    let mut b_votes = sled::Batch::default();
-    let mut b_meta = sled::Batch::default();
-    let mut b_blocks = sled::Batch::default();
-    let mut b_heights = sled::Batch::default();
-
-    for (addr, state) in account_updates {
-        b_accounts.insert(&addr[..], state.to_bytes());
-        let h = crate::crypto::hash::hash_sha3_256(&addr);
-        b_ref.insert(&h[..8], &addr[..]);
-    }
-
-    for (prop, tally) in tally_updates {
-        b_tallies.insert(&prop[..], &tally.to_le_bytes());
-    }
-
-    for vkey in vote_keys {
-        b_votes.insert(&vkey[..], &[1]);
-    }
-
+    // 5. Apply all updates atomically using RocksDB batch
+    // Collect all updates
     let hash = block_hash(block);
-    b_blocks.insert(&hash[..], block.to_bytes());
-    b_heights.insert(&block.block_height[..], &hash[..]);
-    b_meta.insert(crate::node::db::KEY_TIP, &hash[..]);
-
-    // Apply in strict order: Data -> State -> Tip
-    db.apply_block_data_batch(b_blocks, b_heights)?;
-    db.apply_account_batch(b_accounts)?;
-    db.apply_referral_batch(b_ref)?;
-    db.apply_governance_batch(b_tallies, b_votes)?;
-    db.apply_metadata_batch(b_meta)?;
+    
+    // Apply everything in one atomic batch
+    let mut batch = rocksdb::WriteBatch::default();
+    
+    // Get column family handles
+    let cf_blocks = db.db.cf_handle("blocks").ok_or(StateError::DatabaseError("blocks CF not found".into()))?;
+    let cf_heights = db.db.cf_handle("heights").ok_or(StateError::DatabaseError("heights CF not found".into()))?;
+    let cf_accounts = db.db.cf_handle("accounts").ok_or(StateError::DatabaseError("accounts CF not found".into()))?;
+    let cf_referral = db.db.cf_handle("referral_index").ok_or(StateError::DatabaseError("referral_index CF not found".into()))?;
+    let cf_tallies = db.db.cf_handle("gov_tallies").ok_or(StateError::DatabaseError("gov_tallies CF not found".into()))?;
+    let cf_votes = db.db.cf_handle("gov_votes").ok_or(StateError::DatabaseError("gov_votes CF not found".into()))?;
+    let cf_meta = db.db.cf_handle("meta").ok_or(StateError::DatabaseError("meta CF not found".into()))?;
+    
+    // Add block and height
+    batch.put_cf(cf_blocks, &hash, block.to_bytes());
+    batch.put_cf(cf_heights, &block.block_height, &hash);
+    
+    // Add accounts and referral index
+    for (addr, state) in account_updates {
+        batch.put_cf(cf_accounts, &addr, state.to_bytes());
+        let h = crate::crypto::hash::hash_sha3_256(&addr);
+        batch.put_cf(cf_referral, &h[..8], &addr);
+    }
+    
+    // Add governance tallies
+    for (prop, tally) in tally_updates {
+        batch.put_cf(cf_tallies, &prop, &tally.to_le_bytes());
+    }
+    
+    // Add vote records
+    for vkey in vote_keys {
+        batch.put_cf(cf_votes, &vkey, &[1u8]);
+    }
+    
+    // Update tip
+    batch.put_cf(cf_meta, crate::node::db_rocksdb::KEY_TIP, &hash);
+    
+    // Write everything atomically with sync
+    let mut write_opts = rocksdb::WriteOptions::default();
+    write_opts.set_sync(true);
+    db.db.write_opt(batch, &write_opts)?;
 
     Ok(())
 }
@@ -301,7 +314,7 @@ pub use block_hash as compute_stored_block_hash;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::node::db::StoredBlock;
+    use crate::node::db_common::StoredBlock;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
 

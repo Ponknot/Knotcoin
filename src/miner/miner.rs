@@ -9,7 +9,8 @@ use crate::consensus::state::{apply_block, block_hash};
 use crate::crypto::hash::hash_sha3_256;
 use crate::crypto::ponc::ffi::bridge::new_ponc_engine;
 use crate::net::mempool::Mempool;
-use crate::node::db::{ChainDB, StoredBlock, StoredTransaction};
+use crate::node::{ChainDB, db_common::{StoredBlock, StoredTransaction}};
+
 
 const MAX_TXS: usize = 6;
 const RETARGET_INTERVAL: u64 = 60;

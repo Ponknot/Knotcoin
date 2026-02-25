@@ -7,7 +7,7 @@ use knotcoin::consensus::genesis::create_genesis_block;
 use knotcoin::consensus::state::apply_block;
 use knotcoin::net::mempool::Mempool;
 use knotcoin::net::node::P2PNode;
-use knotcoin::node::db::ChainDB;
+use knotcoin::node::ChainDB;
 use knotcoin::rpc::server::{RpcState, start_rpc_server};
 
 use colored::*;
@@ -112,11 +112,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let (p2p_tx, p2p_rx) = tokio::sync::mpsc::unbounded_channel();
 
+    // SECURITY: Generate RPC authentication token
+    let auth_token = knotcoin::rpc::server::generate_rpc_auth_token(&config.data_dir)?;
+    println!(
+        "{} RPC auth token: {}",
+        "[security]".bright_yellow().bold(),
+        &auth_token[..16]
+    );
+    println!(
+        "{}",
+        format!("           Full token saved to: {}/.cookie", config.data_dir).yellow()
+    );
+
     let state = Arc::new(RpcState {
         db,
         mempool: Arc::new(Mutex::new(Mempool::new())),
         shutdown: AtomicBool::new(false),
         p2p_tx,
+        auth_token,
     });
 
     let p2p_state = state.clone();

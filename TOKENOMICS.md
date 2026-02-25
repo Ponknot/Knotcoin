@@ -187,7 +187,7 @@ bonus = (base_reward × 5) / 100
 - `current_height - referrer_last_mined_height ≤ 2,880` (active within 48 hours)
 - `base_reward ≥ 100,000,000 knots` (1.0 KOT minimum)
 
-**Code Reference**: `src/consensus/chain.rs:69-82`
+**Code Reference**: `src/consensus/chain.rs:85-100`
 ```rust
 pub fn calculate_referral_bonus(
     base_reward: u64,
@@ -195,11 +195,11 @@ pub fn calculate_referral_bonus(
     current_height: u64,
 ) -> u64 {
     if referrer_last_mined == 0 {
-        return 0;
+        return 0; // Genesis miners have no referrers or reward window
     }
-    if base_reward < KNOTS_PER_KOT {
-        return 0;
-    }
+    // Threshold removed: referral bonus works for all reward sizes
+    // This ensures the referral system continues working in Phase 3
+    // when rewards drop below 1.0 KOT
     if current_height.saturating_sub(referrer_last_mined) > REFERRAL_WINDOW {
         return 0;
     }

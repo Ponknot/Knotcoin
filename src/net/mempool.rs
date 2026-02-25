@@ -5,7 +5,7 @@
 // per block for Layer 2 dispute transactions.
 
 use crate::crypto::hash::hash_sha3_256;
-use crate::node::db::StoredTransaction;
+use crate::node::db_common::StoredTransaction;
 use crate::primitives::transaction::Transaction;
 use std::collections::HashMap;
 

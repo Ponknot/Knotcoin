@@ -12,10 +12,13 @@ use std::net::SocketAddr;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-use crate::node::db::StoredBlock;
+use crate::node::db_common::StoredBlock;
 
 const MAGIC: [u8; 4] = [0x4B, 0x4E, 0x4F, 0x54]; // "KNOT"
-const MAX_FRAME: usize = 8 * 1024 * 1024; // 8 MB safety limit
+// SECURITY FIX: Reduced from 8MB to 1MB to prevent memory exhaustion DoS
+// Max block size is 500KB, so 1MB provides sufficient overhead while preventing
+// malicious peers from forcing nodes to allocate excessive memory buffers
+const MAX_FRAME: usize = 1 * 1024 * 1024; // 1 MB safety limit
 
 #[derive(Debug, Clone)]
 pub enum NetworkMessage {

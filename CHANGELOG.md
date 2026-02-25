@@ -4,6 +4,30 @@ All notable changes to Knotcoin are documented in this file.
 
 ---
 
+## [1.0.0] - 2026-02-25
+
+### Pre-Genesis Security Improvements
+
+**Database and security hardening before first block**
+
+#### Database Engine
+- RocksDB 0.21 for production reliability
+- WAL-based crash recovery
+- 7 column families for optimized access
+- LZ4 compression, atomic batch operations
+- 96 tests passing
+
+#### Security Fixes
+- Governance weight calculation hardened
+- Phase 3 reward calculation overflow protection
+- RPC authentication via bearer token
+- P2P message size limited to 1MB
+- Documentation updated
+
+**See AUDIT_RESPONSE.md for details**
+
+---
+
 ## [1.0.0] - 2026-02-24
 
 ### Genesis Release

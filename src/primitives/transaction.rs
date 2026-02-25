@@ -2,7 +2,7 @@
 use crate::crypto::hash::hash_sha3_256;
 use crate::crypto::keys::ADDRESS_BYTES;
 use crate::crypto::dilithium::{PublicKey, Signature};
-use crate::node::db::StoredTransaction;
+use crate::node::db_common::StoredTransaction;
 
 pub const KNOTS_PER_KOT: u64 = 100_000_000;
 pub const MIN_FEE_KNOTS: u64 = 1;

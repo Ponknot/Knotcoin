@@ -1,6 +1,17 @@
 const RPC = 'http://127.0.0.1:9001';
 const TWO_256 = 1n << 256n;
 
+// Security: HTML sanitization helper to prevent XSS
+function escapeHtml(unsafe) {
+  if (unsafe === null || unsafe === undefined) return '';
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 // BIP-39 English Wordlist (Subset for mapping - usually we need full 2048 words)
 // Single-page app requirement: Wordlist is embedded directly to ensure standalone operation.
 const WORDLIST = [
@@ -1055,12 +1066,12 @@ function showVizTooltip(event, d) {
   const joinTime = isNew ? `${Math.floor(timeSinceJoin / 1000)}s ago` : 'Established';
 
   tooltip.innerHTML = `
-    <div class="viz-tooltip-address">${d.address.substring(0, 12)}...</div>
+    <div class="viz-tooltip-address">${escapeHtml(d.address.substring(0, 12))}...</div>
     ${isNew ? '<div class="viz-tooltip-stat" style="color: var(--accent);">🆕 NEW MINER</div>' : ''}
-    <div class="viz-tooltip-stat">Joined: <span>${joinTime}</span></div>
-    <div class="viz-tooltip-stat">Blocks: <span>${d.blocks_mined || 0}</span></div>
-    <div class="viz-tooltip-stat">Referred by: <span>${referrerInfo.substring(0, 12)}...</span></div>
-    <div class="viz-tooltip-stat">Referrals: <span>${referralCount}</span></div>
+    <div class="viz-tooltip-stat">Joined: <span>${escapeHtml(joinTime)}</span></div>
+    <div class="viz-tooltip-stat">Blocks: <span>${escapeHtml(String(d.blocks_mined || 0))}</span></div>
+    <div class="viz-tooltip-stat">Referred by: <span>${escapeHtml(referrerInfo.substring(0, 12))}...</span></div>
+    <div class="viz-tooltip-stat">Referrals: <span>${escapeHtml(String(referralCount))}</span></div>
   `;
 
   tooltip.style.left = (event.pageX + 15) + 'px';
@@ -1088,28 +1099,28 @@ function showVizInfo(miner) {
 
   panel.innerHTML = `
     <div class="viz-info-header">
-      <div class="viz-info-title">${miner.address.substring(0, 16)}...</div>
+      <div class="viz-info-title">${escapeHtml(miner.address.substring(0, 16))}...</div>
       <div class="viz-info-close" onclick="hideVizInfo()">×</div>
     </div>
     <div class="viz-info-row">
       <span class="viz-info-label">Status</span>
-      <span class="viz-info-value">${status}</span>
+      <span class="viz-info-value">${escapeHtml(status)}</span>
     </div>
     <div class="viz-info-row">
       <span class="viz-info-label">Blocks Mined</span>
-      <span class="viz-info-value">${miner.blocks_mined || 0}</span>
+      <span class="viz-info-value">${escapeHtml(String(miner.blocks_mined || 0))}</span>
     </div>
     <div class="viz-info-row">
       <span class="viz-info-label">Last Active</span>
-      <span class="viz-info-value">${!miner.last_mined_height ? 'Never' : blocksSince + ' blocks'}</span>
+      <span class="viz-info-value">${escapeHtml(!miner.last_mined_height ? 'Never' : blocksSince + ' blocks')}</span>
     </div>
     <div class="viz-info-row">
       <span class="viz-info-label">Referred By</span>
-      <span class="viz-info-value">${referrerAddr.substring(0, 12)}...</span>
+      <span class="viz-info-value">${escapeHtml(referrerAddr.substring(0, 12))}...</span>
     </div>
     <div class="viz-info-row">
       <span class="viz-info-label">Referrals</span>
-      <span class="viz-info-value">${referralCount}</span>
+      <span class="viz-info-value">${escapeHtml(String(referralCount))}</span>
     </div>
   `;
 
@@ -1176,12 +1187,12 @@ async function loadBlocksPage(page) {
     const minerKOT = await formatAddressKOT1(b.miner);
 
     rows.push(`<tr>
-      <td>${b.height}</td>
+      <td>${escapeHtml(String(b.height))}</td>
       <td>${abbrev(b.hash, 16, 14)}</td>
-      <td>${fmtTime(b.time)}</td>
-      <td>${b.tx_count}</td>
+      <td>${escapeHtml(fmtTime(b.time))}</td>
+      <td>${escapeHtml(String(b.tx_count))}</td>
       <td>${abbrev(minerKOT, 12, 10)}</td>
-      <td><button data-view-height="${b.height}">OPEN</button></td>
+      <td><button data-view-height="${escapeHtml(String(b.height))}">OPEN</button></td>
     </tr>`);
   }
 
@@ -1555,15 +1566,15 @@ async function loadTransactionHistory() {
     return `
       <div style="background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 8px; margin-bottom: 6px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-          <span style="color: ${dirColor}; font-weight: 700;">${dirSymbol} ${tx.direction.toUpperCase()}</span>
-          <span style="color: var(--dim);">${time} ago</span>
+          <span style="color: ${dirColor}; font-weight: 700;">${dirSymbol} ${escapeHtml(tx.direction.toUpperCase())}</span>
+          <span style="color: var(--dim);">${escapeHtml(String(time))} ago</span>
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-          <span style="color: var(--text);">${amount} KOT</span>
-          <span style="color: var(--dim);">Block #${tx.block_height}</span>
+          <span style="color: var(--text);">${escapeHtml(amount)} KOT</span>
+          <span style="color: var(--dim);">Block #${escapeHtml(String(tx.block_height))}</span>
         </div>
         <div style="color: var(--dim); font-size: 9px; word-break: break-all;">
-          ${tx.direction === 'sent' ? 'To' : 'From'}: ${abbrev(otherAddr, 12, 10)}
+          ${escapeHtml(tx.direction === 'sent' ? 'To' : 'From')}: ${abbrev(otherAddr, 12, 10)}
         </div>
         ${tx.gov_data ? '<div style="color: var(--accent); font-size: 9px; margin-top: 4px;">🗳️ Governance Vote</div>' : ''}
       </div>
@@ -1659,11 +1670,11 @@ function displayYourReferredMiners() {
       <div style="background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 8px; margin-bottom: 6px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
           <span style="font-weight: 700; color: var(--text);">${abbrev(m.address, 12, 10)}</span>
-          <span style="font-size: 9px; color: var(--dim);">${status}</span>
+          <span style="font-size: 9px; color: var(--dim);">${escapeHtml(status)}</span>
         </div>
         <div style="display: flex; justify-content: space-between; font-size: 9px; color: var(--dim);">
-          <span>Blocks: ${m.blocks_mined || 0}</span>
-          <span>Last: ${!m.last_mined_height ? 'Never' : blocksSince + ' blocks ago'}</span>
+          <span>Blocks: ${escapeHtml(String(m.blocks_mined || 0))}</span>
+          <span>Last: ${escapeHtml(!m.last_mined_height ? 'Never' : blocksSince + ' blocks ago')}</span>
         </div>
       </div>
     `;
@@ -1867,11 +1878,11 @@ function renderProposals() {
 
     item.innerHTML = `
       <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 8px;">
-        <span>${statusLabel} ${p.action.toUpperCase()}</span>
-        <span style="color: var(--dim);">${timeStr}</span>
+        <span>${statusLabel} ${escapeHtml(p.action.toUpperCase())}</span>
+        <span style="color: var(--dim);">${escapeHtml(timeStr)}</span>
       </div>
-      <div style="margin: 5px 0; font-family: var(--font-mono); font-size: 13px;"><strong>${p.target}</strong></div>
-      <p style="font-size: 12px; margin: 10px 0; color: var(--text); background: var(--panel-alt); padding: 8px; border: 1px dashed var(--line);">${p.desc}</p>
+      <div style="margin: 5px 0; font-family: var(--font-mono); font-size: 13px;"><strong>${escapeHtml(p.target)}</strong></div>
+      <p style="font-size: 12px; margin: 10px 0; color: var(--text); background: var(--panel-alt); padding: 8px; border: 1px dashed var(--line);">${escapeHtml(p.desc)}</p>
       
       <div style="margin: 10px 0;">
         <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
@@ -1886,7 +1897,7 @@ function renderProposals() {
 
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 10px;">
         <span>Proposer: ${abbrev(p.proposer, 6, 6)}</span>
-        <button class="nav-btn active" style="padding: 4px 12px; font-size: 11px;" onclick="signalSupport('${p.target}')" ${p.is_passed ? 'disabled' : ''}>SIGNAL SUPPORT</button>
+        <button class="nav-btn active" style="padding: 4px 12px; font-size: 11px;" onclick="signalSupport('${escapeHtml(p.target)}')" ${p.is_passed ? 'disabled' : ''}>SIGNAL SUPPORT</button>
       </div>
     `;
     list.appendChild(item);
@@ -2018,19 +2029,19 @@ async function formatBlockDetailModal(block) {
         <h3>⛓️ Block Information</h3>
         <div class="detail-row">
           <span class="detail-label">Height</span>
-          <span class="detail-value">${block.height}</span>
+          <span class="detail-value">${escapeHtml(String(block.height))}</span>
         </div>
         <div class="detail-row">
           <span class="detail-label">Timestamp</span>
-          <span class="detail-value">${time} (${ago_time} ago)</span>
+          <span class="detail-value">${escapeHtml(time)} (${escapeHtml(String(ago_time))} ago)</span>
         </div>
         <div class="detail-row">
           <span class="detail-label">Version</span>
-          <span class="detail-value">${block.version}</span>
+          <span class="detail-value">${escapeHtml(String(block.version))}</span>
         </div>
         <div class="detail-row">
           <span class="detail-label">Nonce</span>
-          <span class="detail-value hash-value">${block.nonce}</span>
+          <span class="detail-value hash-value">${escapeHtml(String(block.nonce))}</span>
         </div>
       </div>
       
@@ -2038,19 +2049,19 @@ async function formatBlockDetailModal(block) {
         <h3>⛏️ Mining Details</h3>
         <div class="detail-row">
           <span class="detail-label">Miner Address</span>
-          <span class="detail-value hash-value">${minerKOT}</span>
+          <span class="detail-value hash-value">${escapeHtml(minerKOT)}</span>
         </div>
         <div class="detail-row">
           <span class="detail-label">Block Reward</span>
-          <span class="detail-value" style="color: var(--ok); font-weight: bold;">${fmtKOT(reward)} KOT</span>
+          <span class="detail-value" style="color: var(--ok); font-weight: bold;">${escapeHtml(fmtKOT(reward))} KOT</span>
         </div>
         <div class="detail-row">
           <span class="detail-label">Difficulty</span>
-          <span class="detail-value">${formatDifficulty(block.difficulty)}</span>
+          <span class="detail-value">${escapeHtml(formatDifficulty(block.difficulty))}</span>
         </div>
         <div class="detail-row">
           <span class="detail-label">Transactions</span>
-          <span class="detail-value">${block.tx_count}</span>
+          <span class="detail-value">${escapeHtml(String(block.tx_count))}</span>
         </div>
       </div>
       
@@ -2058,15 +2069,15 @@ async function formatBlockDetailModal(block) {
         <h3>🔐 Cryptographic Hashes</h3>
         <div class="detail-row">
           <span class="detail-label">Block Hash</span>
-          <span class="detail-value hash-value">${block.hash}</span>
+          <span class="detail-value hash-value">${escapeHtml(block.hash)}</span>
         </div>
         <div class="detail-row">
           <span class="detail-label">Previous Block</span>
-          <span class="detail-value hash-value">${block.previousblockhash}</span>
+          <span class="detail-value hash-value">${escapeHtml(block.previousblockhash)}</span>
         </div>
         <div class="detail-row">
           <span class="detail-label">Merkle Root</span>
-          <span class="detail-value hash-value">${block.merkleroot}</span>
+          <span class="detail-value hash-value">${escapeHtml(block.merkleroot)}</span>
         </div>
       </div>
     </div>
