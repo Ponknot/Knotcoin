@@ -1182,7 +1182,16 @@ async function loadBlocksPage(page) {
 
   const head = await fetchHead();
   if (!head) {
-    tbody.innerHTML = '<tr><td colspan="6">RPC unavailable.</td></tr>';
+    tbody.innerHTML = '';
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 6;
+    cell.style.textAlign = 'center';
+    cell.style.padding = '20px';
+    cell.style.color = 'var(--dim)';
+    cell.textContent = 'RPC unavailable.';
+    row.appendChild(cell);
+    tbody.appendChild(row);
     return;
   }
 
@@ -1197,7 +1206,16 @@ async function loadBlocksPage(page) {
   const end = Math.max(0, top);
   const start = Math.max(0, end - state.blocksPageSize + 1);
 
-  tbody.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
+  tbody.innerHTML = '';
+  const loadingRow = document.createElement('tr');
+  const loadingCell = document.createElement('td');
+  loadingCell.colSpan = 6;
+  loadingCell.style.textAlign = 'center';
+  loadingCell.style.padding = '20px';
+  loadingCell.style.color = 'var(--dim)';
+  loadingCell.textContent = 'Loading...';
+  loadingRow.appendChild(loadingCell);
+  tbody.appendChild(loadingRow);
 
   const rows = [];
   for (let h = end; h >= start; h--) {
@@ -1216,7 +1234,20 @@ async function loadBlocksPage(page) {
     </tr>`);
   }
 
-  tbody.innerHTML = rows.join('') || '<tr><td colspan="6">No blocks.</td></tr>';
+  if (rows.length > 0) {
+    tbody.innerHTML = rows.join('');
+  } else {
+    tbody.innerHTML = '';
+    const emptyRow = document.createElement('tr');
+    const emptyCell = document.createElement('td');
+    emptyCell.colSpan = 6;
+    emptyCell.style.textAlign = 'center';
+    emptyCell.style.padding = '20px';
+    emptyCell.style.color = 'var(--dim)';
+    emptyCell.textContent = 'No blocks.';
+    emptyRow.appendChild(emptyCell);
+    tbody.appendChild(emptyRow);
+  }
   label.textContent = `SHOWING HEIGHT #${end} DOWN TO #${start}`;
 
   const prev = el('blocks-prev');

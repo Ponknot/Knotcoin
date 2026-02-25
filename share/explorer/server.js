@@ -9,6 +9,29 @@ const RPC_HOST = '127.0.0.1';
 const RPC_PORT = 9001;
 const WEB_PORT = 8080;
 
+// SECURITY: Rate limiting to prevent DoS attacks
+const connectionLimits = new Map();
+const MAX_CONNECTIONS_PER_IP = 10;
+const RATE_LIMIT_WINDOW = 60000; // 1 minute
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const record = connectionLimits.get(ip) || { count: 0, resetTime: now + RATE_LIMIT_WINDOW };
+  
+  if (now > record.resetTime) {
+    record.count = 0;
+    record.resetTime = now + RATE_LIMIT_WINDOW;
+  }
+  
+  if (record.count >= MAX_CONNECTIONS_PER_IP) {
+    return false;
+  }
+  
+  record.count++;
+  connectionLimits.set(ip, record);
+  return true;
+}
+
 // State
 const state = {
   height: 0,
@@ -28,6 +51,7 @@ async function rpc(method, params = []) {
       id: Date.now()
     });
 
+    // HTTP used for localhost RPC (127.0.0.1:9001) - traffic never leaves machine
     const req = http.request({
       hostname: RPC_HOST,
       port: RPC_PORT,
@@ -109,8 +133,19 @@ async function pollBlocks() {
   }
 }
 
-// HTTP server for static files
+// HTTP server for static files (localhost development - use HTTPS reverse proxy for production)
 const server = http.createServer((req, res) => {
+  const clientIP = req.socket.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+  
+  if (!checkRateLimit(clientIP)) {
+    res.writeHead(429, { 
+      'Content-Type': 'text/plain',
+      'Retry-After': '60'
+    });
+    res.end('429 Too Many Requests');
+    return;
+  }
+
   let filePath = req.url === '/' ? '/index.html' : req.url;
   
   // Remove query string

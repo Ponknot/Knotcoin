@@ -560,7 +560,16 @@ Alice: 75 KOT                     Bob: 75 KOT
   <script>
     const RPC_URL = 'http://127.0.0.1:9001';
     
-    // Real blockchain state
+    function escapeHtml(unsafe) {
+      if (unsafe === null || unsafe === undefined) return '';
+      return String(unsafe)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+    
     let blockchainState = {
       height: 0,
       miners: [],
@@ -905,7 +914,11 @@ Alice: 75 KOT                     Bob: 75 KOT
       
       const leaderboard = document.getElementById('ref-leaderboard');
       if (top5.length === 0) {
-        leaderboard.innerHTML = '<div style="color: var(--dim); padding: 8px;">No referrals yet</div>';
+        leaderboard.innerHTML = '';
+        const div = document.createElement('div');
+        div.style.cssText = 'color: var(--dim); padding: 8px;';
+        div.textContent = 'No referrals yet';
+        leaderboard.appendChild(div);
       } else {
         leaderboard.innerHTML = top5.map(([ addr, count], i) => `
           <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line);">
@@ -971,7 +984,11 @@ Alice: 75 KOT                     Bob: 75 KOT
       document.getElementById('gov-participation').textContent = '0%';
       
       const proposals = document.getElementById('gov-proposals');
-      proposals.innerHTML = '<div style="color: var(--dim); padding: 8px;">No active proposals</div>';
+      proposals.innerHTML = '';
+      const div = document.createElement('div');
+      div.style.cssText = 'color: var(--dim); padding: 8px;';
+      div.textContent = 'No active proposals';
+      proposals.appendChild(div);
       
       drawGovernanceChart(miners, totalBlocks);
     }
@@ -1029,7 +1046,11 @@ Alice: 75 KOT                     Bob: 75 KOT
       document.getElementById('l2-txcount').textContent = '0';
       
       const channels = document.getElementById('l2-channels');
-      channels.innerHTML = '<div style="color: var(--dim); padding: 8px;">No active channels - Phase 2 feature</div>';
+      channels.innerHTML = '';
+      const div = document.createElement('div');
+      div.style.cssText = 'color: var(--dim); padding: 8px;';
+      div.textContent = 'No active channels - Phase 2 feature';
+      channels.appendChild(div);
     }
 
     async function updateBlocksTab() {
@@ -1041,7 +1062,11 @@ Alice: 75 KOT                     Bob: 75 KOT
       
       const blocksList = document.getElementById('blocks-list');
       if (height === 0) {
-        blocksList.innerHTML = '<div style="color: var(--dim); padding: 8px;">No blocks yet</div>';
+        blocksList.innerHTML = '';
+        const div = document.createElement('div');
+        div.style.cssText = 'color: var(--dim); padding: 8px;';
+        div.textContent = 'No blocks yet';
+        blocksList.appendChild(div);
         return;
       }
       
@@ -1179,7 +1204,6 @@ Alice: 75 KOT                     Bob: 75 KOT
       const estimatedReward = (miner.blocks_mined * 10).toFixed(8);
       const referralBonus = (referralCount * 0.5).toFixed(8);
       
-      // Create modal
       const modal = document.createElement('div');
       modal.className = 'modal active';
       modal.innerHTML = `
@@ -1195,15 +1219,15 @@ Alice: 75 KOT                     Bob: 75 KOT
                 <h3>Identity</h3>
                 <div class="detail-row">
                   <span class="detail-label">Address</span>
-                  <span class="detail-value hash-value">${miner.address}</span>
+                  <span class="detail-value hash-value">${escapeHtml(miner.address)}</span>
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Status</span>
-                  <span class="detail-value" style="color: ${statusColor}; font-weight: 800;">${status}</span>
+                  <span class="detail-value" style="color: ${escapeHtml(statusColor)}; font-weight: 800;">${escapeHtml(status)}</span>
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Joined</span>
-                  <span class="detail-value">${joinedAgo}h ago</span>
+                  <span class="detail-value">${escapeHtml(String(joinedAgo))}h ago</span>
                 </div>
               </div>
               
@@ -1211,19 +1235,19 @@ Alice: 75 KOT                     Bob: 75 KOT
                 <h3>Mining Stats</h3>
                 <div class="detail-row">
                   <span class="detail-label">Blocks Mined</span>
-                  <span class="detail-value" style="color: var(--accent); font-weight: 800;">${miner.blocks_mined}</span>
+                  <span class="detail-value" style="color: var(--accent); font-weight: 800;">${escapeHtml(String(miner.blocks_mined))}</span>
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Last Block</span>
-                  <span class="detail-value">#${miner.last_mined_height}</span>
+                  <span class="detail-value">#${escapeHtml(String(miner.last_mined_height))}</span>
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Blocks Since</span>
-                  <span class="detail-value">${blocksSince} blocks</span>
+                  <span class="detail-value">${escapeHtml(String(blocksSince))} blocks</span>
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Est. Rewards</span>
-                  <span class="detail-value" style="color: var(--ok);">${estimatedReward} KOT</span>
+                  <span class="detail-value" style="color: var(--ok);">${escapeHtml(estimatedReward)} KOT</span>
                 </div>
               </div>
               
@@ -1231,19 +1255,19 @@ Alice: 75 KOT                     Bob: 75 KOT
                 <h3>Referral Network</h3>
                 <div class="detail-row">
                   <span class="detail-label">Referrals Made</span>
-                  <span class="detail-value" style="color: var(--accent); font-weight: 800; font-size: 1.2em;">${referralCount}</span>
+                  <span class="detail-value" style="color: var(--accent); font-weight: 800; font-size: 1.2em;">${escapeHtml(String(referralCount))}</span>
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Referred By</span>
-                  <span class="detail-value hash-value">${referrerAddr}</span>
+                  <span class="detail-value hash-value">${escapeHtml(referrerAddr)}</span>
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Referral Bonus</span>
-                  <span class="detail-value" style="color: var(--warn);">${referralBonus} KOT</span>
+                  <span class="detail-value" style="color: var(--warn);">${escapeHtml(referralBonus)} KOT</span>
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Network Depth</span>
-                  <span class="detail-value">${miner.referrer ? 'Level 2+' : 'Genesis'}</span>
+                  <span class="detail-value">${escapeHtml(miner.referrer ? 'Level 2+' : 'Genesis')}</span>
                 </div>
               </div>
               
@@ -1251,11 +1275,11 @@ Alice: 75 KOT                     Bob: 75 KOT
                 <h3>Governance Weight</h3>
                 <div class="detail-row">
                   <span class="detail-label">Voting Power</span>
-                  <span class="detail-value">${((miner.blocks_mined / blockchainState.height) * 100).toFixed(2)}%</span>
+                  <span class="detail-value">${escapeHtml(((miner.blocks_mined / blockchainState.height) * 100).toFixed(2))}%</span>
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Proposal Threshold</span>
-                  <span class="detail-value">${miner.blocks_mined >= 10 ? 'Eligible' : 'Need ' + (10 - miner.blocks_mined) + ' more blocks'}</span>
+                  <span class="detail-value">${escapeHtml(miner.blocks_mined >= 10 ? 'Eligible' : 'Need ' + (10 - miner.blocks_mined) + ' more blocks')}</span>
                 </div>
               </div>
             </div>
