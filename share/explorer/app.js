@@ -2116,7 +2116,16 @@ function showModal(title, content) {
   }
   
   modal.querySelector('.modal-title').textContent = title;
-  modal.querySelector('.modal-body').innerHTML = content;
+  // Security fix: Sanitize content to prevent XSS
+  const modalBody = modal.querySelector('.modal-body');
+  modalBody.textContent = '';
+  if (typeof content === 'string') {
+    const pre = document.createElement('pre');
+    pre.textContent = content;
+    modalBody.appendChild(pre);
+  } else {
+    modalBody.appendChild(content);
+  }
   modal.classList.add('active');
   document.body.style.overflow = 'hidden';
 }
