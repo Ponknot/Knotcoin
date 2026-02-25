@@ -619,7 +619,7 @@ Alice: 75 KOT                     Bob: 75 KOT
       if (miningInfo) {
         blockchainState.height = miningInfo.blocks || 0;
         document.getElementById('demo-height').textContent = blockchainState.height;
-        document.getElementById('demo-supply').textContent = (blockchainState.height * 10).toFixed(2);
+        document.getElementById('demo-supply').textContent = supplyAt(blockchainState.height).toFixed(2);
         document.getElementById('demo-hashrate').textContent = formatHashrate(miningInfo.networkhashps || 0);
         
         // Calculate difficulty from target hex
