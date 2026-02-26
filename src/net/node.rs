@@ -19,8 +19,19 @@ const HANDSHAKE_TIMEOUT_SECS: u64 = 10;
 const MAX_OUTBOUND: usize = 8;
 const MAX_INBOUND: usize = 64;
 
-// Discovery mechanism: ADDR gossip is now the primary discovery method.
-const BOOTSTRAP_PEERS: &[&str] = &[];
+// Hybrid seed node system: Supports both Tor .onion and regular IP addresses
+// Phase 1: Tor bootstrap (temporary, slow but anonymous)
+// Phase 2: Regular IPs added as community volunteers join (fast)
+// Phase 3: Tor seed removed, network runs on community seeds
+const BOOTSTRAP_PEERS: &[&str] = &[
+    // Tor hidden service (temporary bootstrap - can be slow)
+    "u4seopjtremf6f22kib73yk6k2iiizwp7x46fddoxm6hqdcgcaq3piyd.onion:9000",
+    
+    // Regular IP seed nodes (fast, added as volunteers join)
+    // Uncomment and add volunteer IPs below:
+    // "123.45.67.89:9000",  // Volunteer 1
+    // "98.76.54.32:9000",   // Volunteer 2
+];
 
 fn is_private_ip(addr: SocketAddr) -> bool {
     let ip = addr.ip();
@@ -139,10 +150,38 @@ impl P2PNode {
     }
 
     pub async fn connect_bootstrap(&self) {
-        for s in BOOTSTRAP_PEERS {
-            if let Ok(addr) = s.parse::<SocketAddr>() {
-                let _ = self.connect(addr).await;
+        eprintln!("[p2p] Attempting to connect to {} bootstrap peers...", BOOTSTRAP_PEERS.len());
+        
+        for (idx, seed) in BOOTSTRAP_PEERS.iter().enumerate() {
+            // Handle both regular IPs and .onion addresses
+            if seed.contains(".onion") {
+                eprintln!("[p2p] Bootstrap #{}: {} (Tor hidden service - may be slow)", idx + 1, seed);
+                // For .onion addresses, we need Tor SOCKS proxy support
+                // For now, log and skip (will be handled by Tor-enabled clients)
+                eprintln!("[p2p] Note: .onion addresses require Tor SOCKS proxy configuration");
+                continue;
             }
+            
+            // Try to parse and connect to regular IP addresses
+            match seed.parse::<SocketAddr>() {
+                Ok(addr) => {
+                    eprintln!("[p2p] Bootstrap #{}: Connecting to {}...", idx + 1, addr);
+                    match self.connect(addr).await {
+                        Ok(_) => eprintln!("[p2p] Successfully connected to {}", addr),
+                        Err(e) => eprintln!("[p2p] Failed to connect to {}: {}", addr, e),
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[p2p] Invalid seed address '{}': {}", seed, e);
+                }
+            }
+            
+            // Small delay between connection attempts
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        }
+        
+        if BOOTSTRAP_PEERS.is_empty() {
+            eprintln!("[p2p] No bootstrap peers configured. Waiting for incoming connections...");
         }
     }
 }
