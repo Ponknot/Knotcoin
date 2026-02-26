@@ -4,7 +4,7 @@
 
 set -e
 
-VERSION="1.1.0"
+VERSION="1.0.1"
 RELEASE_DATE=$(date +%Y%m%d)
 RELEASE_DIR="dist/knotcoin-v${VERSION}-${RELEASE_DATE}"
 
