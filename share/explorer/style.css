@@ -823,31 +823,6 @@ circle.viz-dragging {
   animation: viz-glow 2s ease-in-out infinite;
 }
 
-/* Modal Styles */
-.modal {
-  display: none;
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1000;
-}
-
-.modal.active {
-  display: block;
-}
-
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(4px);
-}
-
 /* Network Visualization Info Panel */
 #network-viz-info.visible {
   opacity: 1 !important;
