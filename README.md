@@ -28,46 +28,46 @@ Get the latest release for your platform:
 
 **macOS (Apple Silicon)**
 ```bash
-wget https://github.com/Ponknot/Knotcoin/releases/download/v1.0.0/knotcoin-v1.0.0-macos-apple-silicon.tar.gz
-tar -xzf knotcoin-v1.0.0-macos-apple-silicon.tar.gz
-cd knotcoin-v1.0.0-macos-apple-silicon
+wget https://github.com/Ponknot/Knotcoin/releases/download/v1.0.1/knotcoin-v1.0.1-macos-apple-silicon.tar.gz
+tar -xzf knotcoin-v1.0.1-macos-apple-silicon.tar.gz
+cd macos-apple-silicon
 ```
 
 **macOS (Intel)**
 ```bash
-wget https://github.com/Ponknot/Knotcoin/releases/download/v1.0.0/knotcoin-v1.0.0-macos-intel.tar.gz
-tar -xzf knotcoin-v1.0.0-macos-intel.tar.gz
-cd knotcoin-v1.0.0-macos-intel
+wget https://github.com/Ponknot/Knotcoin/releases/download/v1.0.1/knotcoin-v1.0.1-macos-intel.tar.gz
+tar -xzf knotcoin-v1.0.1-macos-intel.tar.gz
+cd macos-intel
 ```
 
 **Linux (x86_64)**
 ```bash
-wget https://github.com/Ponknot/Knotcoin/releases/download/v1.0.0/knotcoin-v1.0.0-linux-x86_64.tar.gz
-tar -xzf knotcoin-v1.0.0-linux-x86_64.tar.gz
-cd knotcoin-v1.0.0-linux-x86_64
+wget https://github.com/Ponknot/Knotcoin/releases/download/v1.0.1/knotcoin-v1.0.1-linux-x86_64.tar.gz
+tar -xzf knotcoin-v1.0.1-linux-x86_64.tar.gz
+cd linux-x86_64
 ```
 
 **Windows (x86_64)**
 ```powershell
-# Download: https://github.com/Ponknot/Knotcoin/releases/download/v1.0.0/knotcoin-v1.0.0-windows-x86_64.tar.gz
+# Download: https://github.com/Ponknot/Knotcoin/releases/download/v1.0.1/knotcoin-v1.0.1-windows-x86_64.tar.gz
 # Extract using 7-Zip or Windows built-in tar:
-tar -xzf knotcoin-v1.0.0-windows-x86_64.tar.gz
-cd knotcoin-v1.0.0-windows-x86_64
+tar -xzf knotcoin-v1.0.1-windows-x86_64.tar.gz
+cd windows-x86_64
 ```
 
 ### 2. Verify Checksums (Important!)
 
 **macOS/Linux:**
 ```bash
-shasum -a 256 knotcoin-v1.0.0-*.tar.gz
+shasum -a 256 knotcoin-v1.0.1-*.tar.gz
 ```
 
 **Expected checksums:**
 ```
-2dcfbbe044a8cfa7f20b39695cf3662b3eb9f1e6410a77961c8fadcaf0202cbc  knotcoin-v1.0.0-macos-apple-silicon.tar.gz
-7a4bdd44923a6ca6c07c239b281254d0bbaae9578407392666d31f6398583ff2  knotcoin-v1.0.0-macos-intel.tar.gz
-6f59b4e72eafb60075df373d8fb929bd325c7bccc340c645853287ad75fc1561  knotcoin-v1.0.0-linux-x86_64.tar.gz
-edcec36dfc4a1aeb4c94d24e7be9f11a22acaac18a612d73d215de8e0f912be8  knotcoin-v1.0.0-windows-x86_64.tar.gz
+eb70aec56189244030ee8451b1ac18c629ae82503705d80ec03a95b42bb75360  knotcoin-v1.0.1-linux-x86_64.tar.gz
+80237ae494882d9121ed9cad3e1ee04fb19bdb92538b35ffeeb0c3554ab0da4a  knotcoin-v1.0.1-macos-apple-silicon.tar.gz
+bc59b551d457403048056018e05b0a83f1b25db56dcd2f93367362e3a3a585c8  knotcoin-v1.0.1-macos-intel.tar.gz
+46118b5f9fa08a156583c7001e0769d0bcda381f2951b955029104748306392f  knotcoin-v1.0.1-windows-x86_64.tar.gz
 ```
 
 **IMPORTANT**: Verify checksums match before running. Mismatched checksums mean corrupted or tampered files.
@@ -97,7 +97,7 @@ The release includes a built-in web explorer. Open it in your browser:
 
 **Option 1: Direct file access**
 ```
-file:///path/to/knotcoin-v1.0.0-[platform]/explorer/index.html
+file:///path/to/knotcoin-v1.0.1-[platform]/explorer/index.html
 ```
 
 **Option 2: Local web server (recommended)**
