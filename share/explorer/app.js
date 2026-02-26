@@ -2250,16 +2250,18 @@ function showModal(title, content) {
 
   modal.querySelector('.modal-title').textContent = title;
   const modalBody = modal.querySelector('.modal-body');
-  // SECURITY: Clear using textContent first, then safely set content
-  modalBody.textContent = '';
+  
+  // Clear previous content
+  modalBody.innerHTML = '';
+  
   if (typeof content === 'string') {
-    // SECURITY: Create text node or parse as safe HTML
-    const tempDiv = document.createElement('div');
-    tempDiv.textContent = content; // This escapes all HTML
-    modalBody.appendChild(tempDiv);
+    // Content is already escaped HTML string from formatBlockDetailModal
+    modalBody.innerHTML = content;
   } else {
+    // Content is a DOM element
     modalBody.appendChild(content);
   }
+  
   modal.classList.add('active');
   document.body.style.overflow = 'hidden';
 }
