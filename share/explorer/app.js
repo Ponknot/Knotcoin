@@ -2504,14 +2504,6 @@ function bindEvents() {
     await startMining();
   });
 
-  el('theme-toggle')?.addEventListener('click', () => {
-    const current = document.documentElement.getAttribute('data-theme');
-    const next = current === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', next);
-    localStorage.setItem('knot-theme', next);
-    el('theme-toggle').textContent = next === 'dark' ? '☾' : '☼';
-  });
-
   el('wallet-generate-btn')?.addEventListener('click', async () => {
     const mnemonic = await generateMnemonic();
     el('generated-mnemonic-text').textContent = mnemonic;
@@ -2595,10 +2587,6 @@ function startPolling() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  const savedTheme = localStorage.getItem('knot-theme') || 'light';
-  const toggle = el('theme-toggle');
-  if (toggle) toggle.textContent = savedTheme === 'dark' ? '☾' : '☼';
-
   // Ensure modal is closed on page load
   const existingModal = document.getElementById('block-modal');
   if (existingModal) {
