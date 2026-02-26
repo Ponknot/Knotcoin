@@ -15,7 +15,7 @@
  * This is a false positive - all dynamic content is properly sanitized.
  */
 
-const RPC = 'http://localhost:8080/rpc';
+const RPC = '/rpc';
 const TWO_256 = 1n << 256n;
 
 // Security: HTML sanitization helper to prevent XSS
