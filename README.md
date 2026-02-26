@@ -144,6 +144,137 @@ Your wallet is now active. The address starts with `KOT1`.
 
 ---
 
+## 🔒 Anonymous Mining with Tor (Recommended)
+
+Knotcoin v1.0.1 includes Tor seed node support for maximum privacy. Here's how to connect anonymously:
+
+### Step 1: Install Tor
+
+**macOS:**
+```bash
+brew install tor
+```
+
+**Linux (Debian/Ubuntu):**
+```bash
+sudo apt install tor
+```
+
+**Windows:**
+Download Tor Browser from https://www.torproject.org/ or install Tor as a service.
+
+### Step 2: Configure Tor
+
+Edit your Tor config (`/usr/local/etc/tor/torrc` on macOS, `/etc/tor/torrc` on Linux):
+
+```
+SOCKSPort 9050
+ControlPort 9051
+```
+
+Start Tor:
+```bash
+# macOS
+brew services start tor
+
+# Linux
+sudo systemctl start tor
+```
+
+### Step 3: Run Knotcoin Through Tor
+
+Knotcoin automatically detects `.onion` addresses and will use your system's Tor proxy. The node connects to:
+
+```
+u4seopjtremf6f22kib73yk6k2iiizwp7x46fddoxm6hqdcgcaq3piyd.onion:9000
+```
+
+Your IP address is never exposed to the network. All connections are routed through Tor.
+
+### Step 4: Verify Anonymous Connection
+
+Check your node logs:
+```bash
+tail -f ~/.knotcoin/mainnet/debug.log
+```
+
+You should see:
+```
+[p2p] Attempting to connect to seed: u4seopjtremf6f22kib73yk6k2iiizwp7x46fddoxm6hqdcgcaq3piyd.onion:9000
+[p2p] Connected to peer via Tor
+```
+
+**Your mining is now completely anonymous.**
+
+---
+
+## 🚀 Be an Early Adopter - Run a Seed Node
+
+The network needs more seed nodes! If you run a public node, you help the network grow and earn community respect.
+
+### Why Run a Seed Node?
+
+1. **Help the network**: New users can discover peers through your node
+2. **Decentralization**: More seeds = more resilient network
+3. **Recognition**: Your node will be listed in the official seed list
+4. **First-mover advantage**: Early seed operators become known in the community
+
+### How to Run a Seed Node
+
+**Requirements:**
+- Static IP address or domain name
+- Port 9000 open for incoming connections
+- 24/7 uptime (recommended)
+- At least 10 Mbps upload speed
+
+**Setup:**
+
+1. **Open port 9000** in your firewall/router
+2. **Run knotcoind** normally (it binds to 0.0.0.0:9000 by default)
+3. **Get your public IP**: `curl ifconfig.me`
+4. **Test connectivity**: Ask someone to connect to `your.ip.address:9000`
+
+### Submit Your Seed Node
+
+Once your node is running and accessible, submit it to the community:
+
+1. **Post on Bitcointalk** with your node info:
+   ```
+   Seed Node: your.ip.address:9000
+   Location: [Country/Region]
+   Uptime: 24/7
+   Bandwidth: [Your upload speed]
+   ```
+
+2. **Or create a GitHub issue**: https://github.com/Ponknot/Knotcoin/issues
+   - Title: "Seed Node Submission"
+   - Include your IP/domain and location
+
+**Your node will be added to the next release!**
+
+### Tor Hidden Service Seed (Advanced)
+
+Want to run an anonymous seed node? Set up a Tor hidden service:
+
+1. Add to `/etc/tor/torrc`:
+   ```
+   HiddenServiceDir /var/lib/tor/knotcoin/
+   HiddenServicePort 9000 127.0.0.1:9000
+   ```
+
+2. Restart Tor: `sudo systemctl restart tor`
+
+3. Get your .onion address:
+   ```bash
+   sudo cat /var/lib/tor/knotcoin/hostname
+   ```
+
+4. Submit your `.onion:9000` address to the community
+
+**Tor seed nodes provide censorship-resistant access to the network.**
+
+---
+
 ## Mining Your First Block
 
 ### Using the Web Explorer
