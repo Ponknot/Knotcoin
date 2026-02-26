@@ -132,3 +132,17 @@ MAINNET_AUDIT_CHECKLIST.md
 MAINNET_READINESS_CHECKLIST.md
 POST_GENESIS_NETWORK_LAUNCH.md
 VERIFIED_AUDIT_SUMMARY.md
+
+# Bitcointalk and announcement files
+BITCOINTALK_*.md
+BITCOINTALK_*.txt
+
+# Tor configuration
+torrc-*
+
+# Version bump scripts
+bump_version.sh
+
+# Temporary Docker files
+Dockerfile.linux
+Dockerfile.windows
