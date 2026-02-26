@@ -44,7 +44,7 @@ fn banner() {
     println!();
     println!(
         "{}",
-        "                    v1.0.0 MAINNET                       "
+        "                    v1.1.0 MAINNET                       "
             .bright_green()
             .on_black()
             .bold()
