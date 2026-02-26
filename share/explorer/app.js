@@ -322,26 +322,26 @@ async function encodeKOT1(addressBytes) {
 async function decodeKOT1(s) {
   const original = s;
   s = s.toUpperCase();
-  
+
   if (!s.startsWith('KOT1')) {
     return null;
   }
-  
+
   const body = s.slice(4);
   if (body.length < 8) {
     return null;
   }
 
   const addrPart = body.slice(0, -7);
-  
+
   const addressBytes = decodeBase32(addrPart);
-  
+
   if (!addressBytes || addressBytes.length !== 32) {
     return null;
   }
 
   const expected = await encodeKOT1(addressBytes);
-  
+
   return expected === s ? addressBytes : null;
 }
 
@@ -473,7 +473,7 @@ function abbrev(v, left = 12, right = 10) {
 
 async function normalizeAddress(input) {
   let addr = String(input || '').trim().toUpperCase();
-  
+
   if (addr.startsWith('KOT1')) {
     const bytes = await decodeKOT1(addr);
     if (!bytes) {
@@ -552,35 +552,70 @@ function updateConn() {
   }
 }
 
-function supplyAt(height) {
-  const h = Math.max(0, Number(height));
-  const p1End = 262800;
-  const p2End = 525600;
-  if (h <= p1End) {
-    // Sum from block 0 to h: each block i gives 0.1 + (0.9 * i / p1End)
-    // Total = (h+1) * 0.1 + 0.9 * sum(i from 0 to h) / p1End
-    // sum(i from 0 to h) = h * (h+1) / 2
-    return (h + 1) * 0.1 + (0.9 * h * (h + 1)) / (2 * p1End);
-  }
-  if (h <= p2End) {
-    // Phase 1 supply + Phase 2 blocks (each gives 1.0 KOT)
-    return supplyAt(p1End) + (h - p1End) * 1.0;
+// Mirrors Rust's phase3_reward() — fixed-point log2, 16-bit fractional precision.
+// Returns the per-block reward in knots (integer) for any Phase 3 block height.
+function phase3RewardKnots(height) {
+  const PHASE_2_END = 525600;
+  const KNOTS_PER_KOT = 100_000_000;
+  const adjusted = BigInt(height) - BigInt(PHASE_2_END + 1);
+  const x = adjusted + 2n;
+  if (x === 2n) return KNOTS_PER_KOT; // first Phase 3 block: log2(2) = 1, reward = 1 KOT
+
+  // Integer log2 of x
+  let ilog = 0n;
+  let tmp = x;
+  while (tmp > 1n) { tmp >>= 1n; ilog++; }
+  let val = ilog << 16n; // fixed-point integer part
+
+  // Fractional bits via iterative squaring (16 iterations)
+  const shiftAmount = 62n > ilog ? 62n - ilog : 0n;
+  let f = x << shiftAmount;
+  for (let i = 15n; i >= 0n; i--) {
+    f = (f * f) >> 62n;
+    if (f >= (1n << 63n)) {
+      val |= (1n << i);
+      f >>= 1n;
+    }
   }
 
-  // Phase 3: decay formula
-  let s = supplyAt(p2End);
-  if (h > p2End) {
-    const adjusted = h - p2End;
-    // Approximation for sum of 1/log2(i+2) from i=1 to adjusted
-    s += adjusted / Math.log2(adjusted / 2 + 2);
+  // 1 / log2(x) in knots = KNOTS_PER_KOT << 16 / val
+  return Number((BigInt(KNOTS_PER_KOT) << 16n) / val);
+}
+
+function supplyAt(height) {
+  const h = Math.max(0, Number(height));
+  const PHASE_1_END = 262800;
+  const PHASE_2_END = 525600;
+  const KNOTS_PER_KOT = 100_000_000;
+  if (h <= PHASE_1_END) {
+    // Phase 1: reward at block i = 0.1 + (0.9 * i / PHASE_1_END) KOT
+    // Cumulative = (h+1)*0.1 + 0.9*h*(h+1)/(2*PHASE_1_END)
+    return (h + 1) * 0.1 + (0.9 * h * (h + 1)) / (2 * PHASE_1_END);
+  }
+  if (h <= PHASE_2_END) {
+    // Phase 2: flat 1.0 KOT per block
+    return supplyAt(PHASE_1_END) + (h - PHASE_1_END) * 1.0;
+  }
+  // Phase 3: sum per-block rewards using the exact Rust formula
+  let s = supplyAt(PHASE_2_END);
+  for (let i = PHASE_2_END + 1; i <= h; i++) {
+    s += phase3RewardKnots(i) / KNOTS_PER_KOT;
   }
   return s;
 }
 
 function rewardKnotsAtHeight(height) {
   const h = Number(height);
+  const PHASE_1_END = 262800;
+  const PHASE_2_END = 525600;
+  const KNOTS_PER_KOT = 100_000_000;
   if (h < 0) return 0;
-  return Math.max(0, Math.round((supplyAt(h) - supplyAt(h - 1)) * 1e8));
+  if (h <= PHASE_1_END) {
+    // Phase 1: 10M + (90M * h / PHASE_1_END) knots
+    return 10_000_000 + Math.floor(90_000_000 * h / PHASE_1_END);
+  }
+  if (h <= PHASE_2_END) return KNOTS_PER_KOT; // Phase 2: 1 KOT flat
+  return phase3RewardKnots(h); // Phase 3: exact Rust formula
 }
 
 function leadingZeroNibbles(hashHex) {
@@ -775,7 +810,7 @@ function initNetworkViz() {
   console.log('[VIZ] Initializing network visualization...');
   const container = el('network-viz-container');
   const canvas = el('network-viz-canvas');
-  
+
   if (!container) {
     console.error('[VIZ] Container not found: network-viz-container');
     return;
@@ -784,17 +819,17 @@ function initNetworkViz() {
     console.error('[VIZ] Canvas not found: network-viz-canvas');
     return;
   }
-  
+
   if (typeof d3 === 'undefined') {
     console.error('[VIZ] D3.js not loaded!');
     return;
   }
-  
+
   console.log('[VIZ] D3.js version:', d3.version);
 
   const width = container.clientWidth;
   const height = container.clientHeight;
-  
+
   console.log('[VIZ] Container dimensions:', width, 'x', height);
 
   const svg = d3.select(canvas)
@@ -835,7 +870,7 @@ function initNetworkViz() {
     lastUpdate: 0,
     updateInProgress: false
   };
-  
+
   console.log('[VIZ] Network visualization initialized successfully');
 }
 
@@ -844,7 +879,7 @@ async function updateNetworkViz() {
     console.error('[VIZ] networkViz not initialized');
     return;
   }
-  
+
   if (networkViz.updateInProgress) {
     console.log('[VIZ] Update already in progress, skipping');
     return;
@@ -876,7 +911,7 @@ async function updateNetworkViz() {
     console.log('[VIZ] Fetching miners from RPC...');
     const data = await rpc('get_all_miners', []);
     console.log('[VIZ] RPC response:', data);
-    
+
     // Backend returns { "miners": [...] } directly
     if (!data || !data.miners) {
       console.error('[VIZ] Invalid response format:', data);
@@ -888,7 +923,7 @@ async function updateNetworkViz() {
 
     // Update miners data with position persistence
     const existingMiners = new Map(networkViz.miners.map(m => [m.address, m]));
-    
+
     networkViz.miners = data.miners.map(m => {
       const existing = existingMiners.get(m.address);
       return {
@@ -919,7 +954,7 @@ async function updateNetworkViz() {
 
 function renderNetworkViz() {
   console.log('[VIZ] renderNetworkViz called, miners:', networkViz?.miners?.length);
-  
+
   if (!networkViz || !networkViz.miners.length) {
     console.log('[VIZ] No miners to render');
     // Show empty state message
@@ -1018,7 +1053,7 @@ function renderNetworkViz() {
 
   const merged = enter.merge(circles);
 
-  merged.each(function(d) {
+  merged.each(function (d) {
     const timeSinceJoin = Date.now() - d.joinedAt;
     const isNew = timeSinceJoin < 300000;
     d3.select(this).classed('viz-new-miner', isNew);
@@ -1144,9 +1179,9 @@ function showVizInfo(miner) {
 
   const blocksSince = state.chainHeight - (miner.last_mined_height || 0);
   const status = !miner.last_mined_height ? 'Never Mined' :
-                blocksSince < 60 ? 'Very Active' :
-                blocksSince < 1440 ? 'Active' :
-                blocksSince < 2880 ? 'Eligible' : 'Inactive';
+    blocksSince < 60 ? 'Very Active' :
+      blocksSince < 1440 ? 'Active' :
+        blocksSince < 2880 ? 'Eligible' : 'Inactive';
 
   const referrerAddr = miner.referrer || 'Independent';
   const referralCount = networkViz.miners.filter(m => m.referrer === miner.address).length;
@@ -1201,13 +1236,13 @@ async function refreshHome() {
   const blocks = await fetchRecentBlocks(40);
   computeTimingAndHashrate(blocks);
   renderHomeStats();
-  
+
   // Initialize network viz if not already done
   if (!networkViz) {
     console.log('[HOME] Initializing network visualization...');
     initNetworkViz();
   }
-  
+
   // Update network visualization
   console.log('[HOME] Updating network visualization...');
   await updateNetworkViz();
@@ -1334,7 +1369,7 @@ function renderNetworkPanel() {
   setText('net-reward', `${fmtKOT(reward)} KOT`);
   setText('net-diff', formatDifficulty(state.difficultyHex).substring(0, 12) + '...');
   setText('net-hash', formatHashrate(global));
-  
+
   // Get referral and governance counts
   const refCount = networkViz?.miners?.filter(m => m.referrer).length || 0;
   const govCount = state.governance?.proposals?.length || 0;
@@ -1353,25 +1388,25 @@ async function refreshNetwork() {
 async function refreshBlocks() {
   const head = await fetchHead();
   if (!head) return;
-  
+
   const blocks = await fetchRecentBlocks(100);
   computeTimingAndHashrate(blocks);
-  
+
   // Update stats
   setText('block-latest', state.chainHeight);
   setText('block-avgtime', state.stats.avgBlockSec ? state.stats.avgBlockSec.toFixed(1) + 's' : '--');
-  
+
   // Calculate total transactions
   let totalTx = 0;
   for (const b of blocks) {
     totalTx += b.tx_count || 0;
   }
   setText('block-totaltx', totalTx);
-  
+
   // Estimate chain size (rough calculation: ~5KB per block average)
   const estimatedSize = (state.chainHeight * 5) / 1024; // MB
   setText('block-size', estimatedSize.toFixed(2) + ' MB');
-  
+
   // Load blocks table
   await loadBlocksPage(state.blocksPage);
 }
@@ -1393,13 +1428,13 @@ async function renderMineStats() {
 
   const latest = state.recentBlocks[0];
   const kotAddr = await formatAddressKOT1(addr);
-  
+
   // Calculate estimated time to next block
   let timeToBlock = 'Calculating...';
   if (state.stats.expectedHashesPerBlock && global > 0) {
     const expectedHashes = bigIntApproxFloat(state.stats.expectedHashesPerBlock);
     const timeSeconds = expectedHashes / global;
-    
+
     if (timeSeconds < 60) {
       timeToBlock = `${Math.round(timeSeconds)}s`;
     } else if (timeSeconds < 3600) {
@@ -1515,22 +1550,22 @@ function stopMining() {
 async function refreshMiner() {
   const minerPrompt = el('miner-login-prompt');
   const minerAuth = el('miner-auth-only');
-  
+
   if (!state.walletAddr) {
     if (minerPrompt) minerPrompt.classList.remove('hidden');
     if (minerAuth) minerAuth.classList.add('hidden');
     return;
   }
-  
+
   if (minerPrompt) minerPrompt.classList.add('hidden');
   if (minerAuth) minerAuth.classList.remove('hidden');
-  
+
   // Populate miner address field
   const mineAddr = el('mine-addr');
   if (mineAddr) {
     mineAddr.value = state.walletAddr;
   }
-  
+
   await refreshCoreData();
   renderMineStats();
 }
@@ -1620,19 +1655,19 @@ async function loadTransactionHistory() {
 
   const myAddr = state.walletAddr.toLowerCase();
   const transactions = [];
-  
+
   // Scan last 100 blocks for transactions involving this address
   const scanDepth = Math.min(100, state.chainHeight);
   const startHeight = Math.max(0, state.chainHeight - scanDepth);
-  
+
   for (let h = state.chainHeight; h >= startHeight; h--) {
     const block = await fetchBlockByHeight(h);
     if (!block || !block.transactions) continue;
-    
+
     for (const tx of block.transactions) {
       const sender = String(tx.sender || '').toLowerCase();
       const recipient = String(tx.recipient || '').toLowerCase();
-      
+
       if (sender === myAddr || recipient === myAddr) {
         transactions.push({
           ...tx,
@@ -1642,7 +1677,7 @@ async function loadTransactionHistory() {
         });
       }
     }
-    
+
     // Limit to 50 transactions
     if (transactions.length >= 50) break;
   }
@@ -1658,7 +1693,7 @@ async function loadTransactionHistory() {
     const otherAddr = tx.direction === 'sent' ? tx.recipient : tx.sender;
     const amount = fmtKOT(tx.amount);
     const time = ago(tx.block_time);
-    
+
     return `
       <div style="background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 8px; margin-bottom: 6px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
@@ -1723,45 +1758,45 @@ async function refreshReferral() {
 
   // Draw referral chart
   drawReferralChart();
-  
+
   // List miners YOU referred
   displayYourReferredMiners();
-  
+
   await refreshGovernance();
 }
 
 function displayYourReferredMiners() {
   const container = el('ref-your-miners');
   if (!container || !state.walletAddr) return;
-  
+
   const miners = networkViz?.miners || [];
   if (miners.length === 0) {
     container.innerHTML = '<div style="text-align: center; color: var(--dim); padding: 20px;">Network data loading...</div>';
     return;
   }
-  
+
   // Filter miners referred by YOU
   const myAddr = state.walletAddr.toLowerCase();
   const referred = miners.filter(m => {
     const referrer = String(m.referrer || '').toLowerCase();
     return referrer === myAddr;
   });
-  
+
   if (referred.length === 0) {
     container.innerHTML = '<div style="text-align: center; color: var(--dim); padding: 20px;">You haven\'t referred anyone yet.<br><br>Share your referral code to start earning bonuses!</div>';
     return;
   }
-  
+
   // Sort by blocks mined (most active first)
   referred.sort((a, b) => (b.blocks_mined || 0) - (a.blocks_mined || 0));
-  
+
   const rows = referred.map(m => {
     const blocksSince = state.chainHeight - (m.last_mined_height || 0);
     const status = !m.last_mined_height ? 'Never Mined' :
-                  blocksSince < 60 ? '🟢 Very Active' :
-                  blocksSince < 1440 ? '🟡 Active' :
-                  blocksSince < 2880 ? '🟠 Eligible' : '⚫ Inactive';
-    
+      blocksSince < 60 ? '🟢 Very Active' :
+        blocksSince < 1440 ? '🟡 Active' :
+          blocksSince < 2880 ? '🟠 Eligible' : '⚫ Inactive';
+
     return `
       <div style="background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 8px; margin-bottom: 6px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
@@ -1775,7 +1810,7 @@ function displayYourReferredMiners() {
       </div>
     `;
   }).join('');
-  
+
   container.innerHTML = rows;
 }
 
@@ -1785,9 +1820,9 @@ function drawReferralChart() {
   const ctx = canvas.getContext('2d');
   const width = canvas.width = canvas.offsetWidth * 2;
   const height = canvas.height = 360;
-  
+
   ctx.clearRect(0, 0, width, height);
-  
+
   // Get referral distribution from network miners
   const miners = networkViz?.miners || [];
   if (miners.length === 0) {
@@ -1797,7 +1832,7 @@ function drawReferralChart() {
     ctx.fillText('No data yet', width / 2, height / 2);
     return;
   }
-  
+
   // Count referrals per miner
   const refCounts = {};
   miners.forEach(m => {
@@ -1806,7 +1841,7 @@ function drawReferralChart() {
       refCounts[count] = (refCounts[count] || 0) + 1;
     }
   });
-  
+
   const entries = Object.entries(refCounts).sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
   if (entries.length === 0) {
     ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--dim');
@@ -1815,19 +1850,19 @@ function drawReferralChart() {
     ctx.fillText('No referrals yet', width / 2, height / 2);
     return;
   }
-  
+
   const maxCount = Math.max(...entries.map(e => e[1]));
   const barWidth = width / entries.length * 0.8;
   const gap = width / entries.length * 0.2;
-  
+
   entries.forEach(([refs, count], i) => {
     const barHeight = (count / maxCount) * (height - 40);
     const x = i * (barWidth + gap) + gap;
     const y = height - barHeight - 20;
-    
+
     ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent');
     ctx.fillRect(x, y, barWidth, barHeight);
-    
+
     ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text');
     ctx.font = '20px JetBrains Mono, monospace';
     ctx.textAlign = 'center';
@@ -1853,7 +1888,7 @@ async function refreshGovernance() {
 
   state.governance.proposals = updatedProposals;
   renderProposals();
-  
+
   // Draw governance chart
   drawGovernanceChart();
 }
@@ -1864,9 +1899,9 @@ function drawGovernanceChart() {
   const ctx = canvas.getContext('2d');
   const width = canvas.width = canvas.offsetWidth * 2;
   const height = canvas.height = 360;
-  
+
   ctx.clearRect(0, 0, width, height);
-  
+
   const miners = networkViz?.miners || [];
   if (miners.length === 0) {
     ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--dim');
@@ -1875,7 +1910,7 @@ function drawGovernanceChart() {
     ctx.fillText('No data yet', width / 2, height / 2);
     return;
   }
-  
+
   const totalBlocks = miners.reduce((sum, m) => sum + (m.blocks_mined || 0), 0);
   if (totalBlocks === 0) {
     ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--dim');
@@ -1884,7 +1919,7 @@ function drawGovernanceChart() {
     ctx.fillText('No blocks mined yet', width / 2, height / 2);
     return;
   }
-  
+
   const top10 = miners
     .map(m => ({
       addr: m.address,
@@ -1894,7 +1929,7 @@ function drawGovernanceChart() {
     .filter(m => m.blocks > 0)
     .sort((a, b) => b.blocks - a.blocks)
     .slice(0, 10);
-  
+
   if (top10.length === 0) {
     ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--dim');
     ctx.font = '24px JetBrains Mono, monospace';
@@ -1902,23 +1937,23 @@ function drawGovernanceChart() {
     ctx.fillText('No miners yet', width / 2, height / 2);
     return;
   }
-  
+
   const maxPower = Math.max(...top10.map(m => m.power));
   const barHeight = (height - 40) / top10.length * 0.8;
   const gap = (height - 40) / top10.length * 0.2;
-  
+
   top10.forEach((miner, i) => {
     const barWidth = (miner.power / maxPower) * (width - 200);
     const y = i * (barHeight + gap) + gap;
-    
+
     ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent');
     ctx.fillRect(150, y, barWidth, barHeight);
-    
+
     ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text');
     ctx.font = '18px JetBrains Mono, monospace';
     ctx.textAlign = 'right';
     ctx.fillText(miner.addr.substring(0, 12) + '...', 145, y + barHeight / 2 + 6);
-    
+
     ctx.textAlign = 'left';
     ctx.fillText(miner.power.toFixed(2) + '%', 155 + barWidth, y + barHeight / 2 + 6);
   });
@@ -2110,7 +2145,7 @@ async function showBlock(hash) {
   const block = await rpc('getblock', [hash]);
   if (!block || block.error) return;
   block.hash = hash;
-  
+
   const modalContent = await formatBlockDetailModal(block);
   showModal('Block Details', modalContent);
 }
@@ -2120,7 +2155,7 @@ async function formatBlockDetailModal(block) {
   const reward = rewardKnotsAtHeight(block.height);
   const time = new Date(block.time * 1000).toLocaleString();
   const ago_time = ago(block.time);
-  
+
   return `
     <div class="modal-grid">
       <div class="modal-section">
@@ -2199,10 +2234,10 @@ function showModal(title, content) {
       </div>
     `;
     document.body.appendChild(modal);
-    
+
     modal.querySelector('.modal-overlay').addEventListener('click', closeModal);
     modal.querySelector('.modal-close').addEventListener('click', closeModal);
-    
+
     document.addEventListener('keydown', function escHandler(e) {
       if (e.key === 'Escape') {
         const m = document.getElementById('block-modal');
@@ -2212,7 +2247,7 @@ function showModal(title, content) {
       }
     });
   }
-  
+
   modal.querySelector('.modal-title').textContent = title;
   const modalBody = modal.querySelector('.modal-body');
   // SECURITY: Clear using textContent first, then safely set content
@@ -2336,16 +2371,16 @@ async function goToPage(page, push = true) {
 
 async function importWallet(secret) {
   const pk = String(secret || '').trim().toLowerCase();
-  
+
   // Validation
   if (!pk) {
     alert('Please enter a mnemonic or seed.');
     return false;
   }
-  
+
   let seedBytes;
   const wordCount = pk.split(' ').length;
-  
+
   if (wordCount === 24 || wordCount === 12) {
     // Validate mnemonic words
     const words = pk.split(' ');
@@ -2354,7 +2389,7 @@ async function importWallet(secret) {
       alert(`Invalid mnemonic words: ${invalidWords.join(', ')}\n\nPlease check your mnemonic and try again.`);
       return false;
     }
-    
+
     try {
       seedBytes = await mnemonicToSeed(pk, "");
     } catch (e) {
@@ -2379,7 +2414,7 @@ async function importWallet(secret) {
   }
 
   try {
-    
+
     // Convert seed to account seed (Account 0)
     const accKeyMaterial = await crypto.subtle.importKey(
       'raw',
@@ -2427,7 +2462,7 @@ async function importWallet(secret) {
       console.error('Refresh error (non-fatal):', refreshError);
       // Continue anyway - wallet is imported
     }
-    
+
     return true;
   } catch (e) {
     alert(`Failed to import wallet: ${e.message}\n\nCheck console for details.`);
@@ -2550,7 +2585,7 @@ function startPolling() {
       await updateNetworkViz();
     }
   }, 5000);
-  
+
   setInterval(() => {
     setText('clock', new Date().toUTCString());
     if (state.mining.active) renderMineStats();

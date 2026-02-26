@@ -46,6 +46,7 @@ rand_core     = "0.6"
 
 # Networking
 tokio         = { version = "1", features = ["full"] }
+tokio-socks   = "0.5"
 hyper         = { version = "1", features = ["http1", "server"] }
 hyper-util    = { version = "0.1", features = ["tokio"] }
 rayon         = "1.10"

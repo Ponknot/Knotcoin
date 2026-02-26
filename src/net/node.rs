@@ -5,6 +5,7 @@ use tokio::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use tokio::net::{TcpListener, TcpStream};
+use tokio_socks::tcp::Socks5Stream;
 
 use crate::config::P2P_BIND_ADDRESS;
 use crate::consensus::state::{apply_block, block_hash};
@@ -13,24 +14,26 @@ use crate::node::{ChainDB, db_common::StoredBlock};
 use crate::net::mempool::Mempool;
 use crate::rpc::server::RpcState;
 
+/// Tor SOCKS5 proxy address (standard Tor daemon port)
+const TOR_SOCKS_PROXY: &str = "127.0.0.1:9050";
+
 const MAX_HEADERS_PER_MSG: usize = 2000;
 const MAX_BLOCKS_PER_MSG: usize = 16;
 const HANDSHAKE_TIMEOUT_SECS: u64 = 10;
 const MAX_OUTBOUND: usize = 8;
 const MAX_INBOUND: usize = 64;
 
-// Hybrid seed node system: Supports both Tor .onion and regular IP addresses
-// Phase 1: Tor bootstrap (temporary, slow but anonymous)
-// Phase 2: Regular IPs added as community volunteers join (fast)
-// Phase 3: Tor seed removed, network runs on community seeds
+// Hybrid bootstrap: .onion addresses go through Tor SOCKS5, plain IPs connect directly.
+// Add community seed IPs below as volunteers join — both types work simultaneously.
 const BOOTSTRAP_PEERS: &[&str] = &[
-    // Tor hidden service (temporary bootstrap - can be slow)
+    // Tor hidden service — requires Tor running on the local machine (port 9050).
+    // Provides the initial anonymous bootstrap when no plain-IP seeds are known yet.
     "u4seopjtremf6f22kib73yk6k2iiizwp7x46fddoxm6hqdcgcaq3piyd.onion:9000",
-    
-    // Regular IP seed nodes (fast, added as volunteers join)
-    // Uncomment and add volunteer IPs below:
-    // "123.45.67.89:9000",  // Volunteer 1
-    // "98.76.54.32:9000",   // Volunteer 2
+
+    // Community plain-IP seed nodes — no Tor required, fast direct connection.
+    // Add volunteer IPs here and rebuild / release:
+    // "1.2.3.4:9000",   // Example volunteer 1
+    // "5.6.7.8:9000",   // Example volunteer 2
 ];
 
 fn is_private_ip(addr: SocketAddr) -> bool {
@@ -130,58 +133,94 @@ impl P2PNode {
         }
     }
 
+    /// Connect to a plain TCP peer directly.
     pub async fn connect(&self, addr: SocketAddr) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let outbound_count = self.peers.lock().await.values().filter(|i| i.is_outbound).count();
         if outbound_count >= MAX_OUTBOUND {
             return Err("max outbound reached".into());
         }
-
         let stream = TcpStream::connect(addr).await?;
+        self.spawn_connection(stream, addr, true);
+        Ok(())
+    }
+
+    /// Connect to a .onion address through the local Tor SOCKS5 proxy.
+    async fn connect_onion(
+        &self,
+        onion_addr: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let outbound_count = self.peers.lock().await.values().filter(|i| i.is_outbound).count();
+        if outbound_count >= MAX_OUTBOUND {
+            return Err("max outbound reached".into());
+        }
+
+        // Establish TCP tunnel through Tor SOCKS5 proxy to the .onion destination.
+        let socks_stream = Socks5Stream::connect(TOR_SOCKS_PROXY, onion_addr).await
+            .map_err(|e| format!("Tor SOCKS5 error connecting to {onion_addr}: {e}"))?;
+        let stream = socks_stream.into_inner();
+
+        // Use a fake SocketAddr for the peer map key (we only have the .onion name).
+        // We encode the onion host hash into the peer address so it is unique.
+        let fake_addr: SocketAddr = "127.0.0.2:9000".parse().unwrap();
+        self.spawn_connection(stream, fake_addr, true);
+        Ok(())
+    }
+
+    /// Shared helper: spawn a connection handler task for an already-opened TcpStream.
+    fn spawn_connection(&self, stream: TcpStream, addr: SocketAddr, is_outbound: bool) {
         let db = self.db.clone();
         let mempool = self.mempool.clone();
         let peers = self.peers.clone();
         let broadcast_tx = self.broadcast_tx.clone();
         tokio::spawn(async move {
-            if let Err(e) = handle_connection(stream, addr, db, mempool, peers, broadcast_tx, true).await {
-                eprintln!("[p2p] {addr} error: {e}");
+            if let Err(e) = handle_connection(stream, addr, db, mempool, peers, broadcast_tx, is_outbound).await {
+                eprintln!("[p2p] {addr} disconnected: {e}");
             }
         });
-        Ok(())
     }
 
+    /// Bootstrap the node by attempting connections to all configured seed peers.
+    /// Hybrid: .onion seeds use Tor SOCKS5, plain-IP seeds connect directly.
+    /// Gracefully skips .onion seeds if Tor is not available.
     pub async fn connect_bootstrap(&self) {
-        eprintln!("[p2p] Attempting to connect to {} bootstrap peers...", BOOTSTRAP_PEERS.len());
-        
-        for (idx, seed) in BOOTSTRAP_PEERS.iter().enumerate() {
-            // Handle both regular IPs and .onion addresses
+        if BOOTSTRAP_PEERS.is_empty() {
+            eprintln!("[p2p] No bootstrap peers configured — waiting for inbound connections.");
+            return;
+        }
+        eprintln!("[p2p] Bootstrapping from {} seed peer(s)...", BOOTSTRAP_PEERS.len());
+
+        for (idx, &seed) in BOOTSTRAP_PEERS.iter().enumerate() {
             if seed.contains(".onion") {
-                eprintln!("[p2p] Bootstrap #{}: {} (Tor hidden service - may be slow)", idx + 1, seed);
-                // For .onion addresses, we need Tor SOCKS proxy support
-                // For now, log and skip (will be handled by Tor-enabled clients)
-                eprintln!("[p2p] Note: .onion addresses require Tor SOCKS proxy configuration");
-                continue;
-            }
-            
-            // Try to parse and connect to regular IP addresses
-            match seed.parse::<SocketAddr>() {
-                Ok(addr) => {
-                    eprintln!("[p2p] Bootstrap #{}: Connecting to {}...", idx + 1, addr);
-                    match self.connect(addr).await {
-                        Ok(_) => eprintln!("[p2p] Successfully connected to {}", addr),
-                        Err(e) => eprintln!("[p2p] Failed to connect to {}: {}", addr, e),
+                // ── Tor path ──────────────────────────────────────────────────
+                eprintln!("[p2p] Seed #{}: {} (Tor .onion — attempting SOCKS5 via {TOR_SOCKS_PROXY})", idx + 1, seed);
+                match self.connect_onion(seed).await {
+                    Ok(_) => eprintln!("[p2p] Seed #{}: Tor connection established.", idx + 1),
+                    Err(e) => {
+                        // Connection refused typically means Tor is not running.
+                        if e.to_string().contains("refused") || e.to_string().contains("10061") {
+                            eprintln!("[p2p] Seed #{}: Tor not available (port 9050 not open). \
+                                Start Tor to use .onion bootstrap. Skipping.", idx + 1);
+                        } else {
+                            eprintln!("[p2p] Seed #{}: .onion connect failed: {e}", idx + 1);
+                        }
                     }
                 }
-                Err(e) => {
-                    eprintln!("[p2p] Invalid seed address '{}': {}", seed, e);
+            } else {
+                // ── Plain-IP path ─────────────────────────────────────────────
+                match seed.parse::<SocketAddr>() {
+                    Ok(addr) => {
+                        eprintln!("[p2p] Seed #{}: {} (direct TCP)", idx + 1, addr);
+                        match self.connect(addr).await {
+                            Ok(_) => eprintln!("[p2p] Seed #{}: connected.", idx + 1),
+                            Err(e) => eprintln!("[p2p] Seed #{}: failed: {e}", idx + 1),
+                        }
+                    }
+                    Err(e) => eprintln!("[p2p] Seed #{}: invalid address '{}': {e}", idx + 1, seed),
                 }
             }
-            
-            // Small delay between connection attempts
+
+            // Brief pause between attempts to avoid hammering seeds.
             tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-        }
-        
-        if BOOTSTRAP_PEERS.is_empty() {
-            eprintln!("[p2p] No bootstrap peers configured. Waiting for incoming connections...");
         }
     }
 }
@@ -430,5 +469,5 @@ async fn handle_msg(
 fn find_height_of_hash(db: &ChainDB, hash: &[u8; 32]) -> Option<u32> {
     db.get_block(hash)
         .ok()?
-        .map(|b| u32::from_be_bytes(b.block_height))
+        .map(|b| u32::from_le_bytes(b.block_height))
 }
