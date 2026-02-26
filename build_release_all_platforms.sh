@@ -138,51 +138,45 @@ else
     fi
 fi
 
-# Build for Linux (if cross-compilation is available)
+# Build for Linux using Zig
 echo ""
 echo "╔════════════════════════════════════════════════════════════╗"
 echo "║   BUILDING FOR LINUX                                       ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo ""
 
-if rustup target list | grep -q "x86_64-unknown-linux-musl"; then
-    # Add musl target if not installed
-    if ! rustup target list | grep -q "x86_64-unknown-linux-musl (installed)"; then
-        echo "   📦 Installing musl target..."
-        rustup target add x86_64-unknown-linux-musl
-    fi
-    
-    echo "🐧 Building for Linux x86_64 (musl)..."
-    cargo build --release --target x86_64-unknown-linux-musl --bin knotcoind --bin knotcoin-cli
-    
-    cp target/x86_64-unknown-linux-musl/release/knotcoind "${RELEASE_DIR}/linux-x86_64/"
-    cp target/x86_64-unknown-linux-musl/release/knotcoin-cli "${RELEASE_DIR}/linux-x86_64/"
-    echo "   ✅ Linux x86_64 build complete"
-else
-    echo "   ⚠️  Linux musl target not available"
-    echo "   Install: rustup target add x86_64-unknown-linux-musl"
-    echo "   Linker: brew install filosottile/musl-cross/musl-cross"
+# Add musl target if not installed
+if ! rustup target list | grep -q "x86_64-unknown-linux-musl (installed)"; then
+    echo "   📦 Installing musl target..."
+    rustup target add x86_64-unknown-linux-musl
 fi
 
-# Build for Windows (if cross-compilation is available)
+echo "🐧 Building for Linux x86_64 (musl) using Zig..."
+cargo zigbuild --release --target x86_64-unknown-linux-musl --bin knotcoind --bin knotcoin-cli
+
+cp target/x86_64-unknown-linux-musl/release/knotcoind "${RELEASE_DIR}/linux-x86_64/"
+cp target/x86_64-unknown-linux-musl/release/knotcoin-cli "${RELEASE_DIR}/linux-x86_64/"
+echo "   ✅ Linux x86_64 build complete"
+
+# Build for Windows using Zig
 echo ""
 echo "╔════════════════════════════════════════════════════════════╗"
 echo "║   BUILDING FOR WINDOWS                                     ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo ""
 
-if rustup target list | grep -q "x86_64-pc-windows-gnu (installed)"; then
-    echo "🪟 Building for Windows x86_64..."
-    cargo build --release --target x86_64-pc-windows-gnu --bin knotcoind --bin knotcoin-cli
-    
-    cp target/x86_64-pc-windows-gnu/release/knotcoind.exe "${RELEASE_DIR}/windows-x86_64/" 2>/dev/null || true
-    cp target/x86_64-pc-windows-gnu/release/knotcoin-cli.exe "${RELEASE_DIR}/windows-x86_64/" 2>/dev/null || true
-    echo "   ✅ Windows x86_64 build complete"
-else
-    echo "   ⚠️  Windows target not installed, skipping"
-    echo "   To build for Windows: rustup target add x86_64-pc-windows-gnu"
-    echo "   Note: Requires MinGW-w64 toolchain"
+# Add Windows target if not installed
+if ! rustup target list | grep -q "x86_64-pc-windows-gnu (installed)"; then
+    echo "   📦 Installing Windows target..."
+    rustup target add x86_64-pc-windows-gnu
 fi
+
+echo "🪟 Building for Windows x86_64 using Zig..."
+cargo zigbuild --release --target x86_64-pc-windows-gnu --bin knotcoind --bin knotcoin-cli
+
+cp target/x86_64-pc-windows-gnu/release/knotcoind.exe "${RELEASE_DIR}/windows-x86_64/" 2>/dev/null || true
+cp target/x86_64-pc-windows-gnu/release/knotcoin-cli.exe "${RELEASE_DIR}/windows-x86_64/" 2>/dev/null || true
+echo "   ✅ Windows x86_64 build complete"
 
 # Restore private config
 echo ""
