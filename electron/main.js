@@ -98,7 +98,9 @@ function setupTray() {
     tray.setContextMenu(buildMenu());
   });
 }
-const DEFAULT_BOOTSTRAP_PEERS = "[2401:4900:8834:deb3:71e1:5bd6:e430:e0ec]:9000,223.185.60.199:9000";
+// Default bootstrap peers - DNS-based for privacy
+// Users can override via KNOTCOIN_BOOTSTRAP_PEERS environment variable
+const DEFAULT_BOOTSTRAP_PEERS = "seed.knotcoin.network:9000";
 
 let knotcoindProcess = null;
 let proxyServer = null;

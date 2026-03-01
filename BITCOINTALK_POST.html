@@ -1,0 +1,139 @@
+<div style="font-family: Arial, sans-serif; max-width: 800px;">
+
+<h1 style="color: #2c3e50;">Knotcoin - Quantum-Resistant Blockchain</h1>
+
+<p><strong>Version:</strong> 1.0.2 | <strong>Network:</strong> Mainnet Live | <strong>Block Height:</strong> 125+</p>
+
+<hr>
+
+<h2>What is Knotcoin?</h2>
+
+<p>Knotcoin is a quantum-resistant blockchain using post-quantum cryptography (Dilithium3) standardized by NIST in 2024. The network features proof-of-work consensus, referral rewards, and decentralized governance.</p>
+
+<h3>Key Features</h3>
+<ul>
+<li><strong>Post-Quantum Security:</strong> Dilithium3 signatures (NIST FIPS 204) resistant to quantum computer attacks</li>
+<li><strong>Referral System:</strong> Earn 5% bonus rewards when miners you refer find blocks</li>
+<li><strong>Fair Launch:</strong> No premine, no ICO, pure proof-of-work from genesis</li>
+<li><strong>Decentralized Governance:</strong> On-chain voting for protocol upgrades</li>
+<li><strong>Real-time Network Map:</strong> Visualize miners and referral connections</li>
+</ul>
+
+<h2>Network Specifications</h2>
+
+<table style="border-collapse: collapse; width: 100%; margin: 20px 0;">
+<tr style="background: #f4f4f4;">
+<td style="padding: 8px; border: 1px solid #ddd;"><strong>Algorithm</strong></td>
+<td style="padding: 8px; border: 1px solid #ddd;">Proof-of-Work (SHA-512)</td>
+</tr>
+<tr>
+<td style="padding: 8px; border: 1px solid #ddd;"><strong>Block Time</strong></td>
+<td style="padding: 8px; border: 1px solid #ddd;">~60 seconds</td>
+</tr>
+<tr style="background: #f4f4f4;">
+<td style="padding: 8px; border: 1px solid #ddd;"><strong>Block Reward</strong></td>
+<td style="padding: 8px; border: 1px solid #ddd;">50 KOT (halves every 210,000 blocks)</td>
+</tr>
+<tr>
+<td style="padding: 8px; border: 1px solid #ddd;"><strong>Max Supply</strong></td>
+<td style="padding: 8px; border: 1px solid #ddd;">21,000,000 KOT</td>
+</tr>
+<tr style="background: #f4f4f4;">
+<td style="padding: 8px; border: 1px solid #ddd;"><strong>Difficulty Adjustment</strong></td>
+<td style="padding: 8px; border: 1px solid #ddd;">Every 10 blocks</td>
+</tr>
+</table>
+
+<h2>Downloads</h2>
+
+<p><strong>Latest Release:</strong> v1.0.2</p>
+
+<ul>
+<li><strong>macOS (Apple Silicon):</strong> <a href="https://github.com/Ponknot/Knotcoin/releases/download/v1.0.2/Knotcoin-1.0.2-arm64.dmg">Knotcoin-1.0.2-arm64.dmg</a> (3.3 MB)</li>
+<li><strong>Windows (x64):</strong> <a href="https://github.com/Ponknot/Knotcoin/releases/download/v1.0.2/Knotcoin-1.0.2-win-x64.zip">Knotcoin-1.0.2-win-x64.zip</a> (3.0 MB)</li>
+<li><strong>Linux (x64):</strong> <a href="https://github.com/Ponknot/Knotcoin/releases/download/v1.0.2/Knotcoin-1.0.2-linux-x64.tar.gz">Knotcoin-1.0.2-linux-x64.tar.gz</a> (3.1 MB)</li>
+</ul>
+
+<p><strong>SHA256 Checksums:</strong></p>
+<pre style="background: #f4f4f4; padding: 10px; overflow-x: auto; font-size: 11px;">
+71f6e155f476de19ff6d1c28c0a21ab19668b2d8296548c9cd68574975db2258  Knotcoin-1.0.2-arm64.dmg
+d53a751e4d6eaf38fb75064c7ec279ee9f76afde240c08d7a4a1e95385bb068e  Knotcoin-1.0.2-linux-x64.tar.gz
+2a5b5728c856c69c06f2a38652dfc9d567233f7bec952d422ab601e601135d04  Knotcoin-1.0.2-win-x64.zip
+</pre>
+
+<h2>Quick Start</h2>
+
+<ol>
+<li>Download and install for your platform</li>
+<li>Launch the application</li>
+<li>Open browser to <code>http://localhost:19001</code></li>
+<li>Create wallet with 24-word mnemonic (write it down!)</li>
+<li>Start mining to earn rewards</li>
+</ol>
+
+<h2>Why Quantum-Resistant?</h2>
+
+<p>Current blockchains use ECDSA signatures vulnerable to quantum computers. Knotcoin uses Dilithium3, a lattice-based signature scheme standardized by NIST, providing security against both classical and quantum attacks.</p>
+
+<h2>Referral System</h2>
+
+<p>Register a referrer when creating your wallet. When you mine blocks, your referrer earns a 5% protocol-minted bonus (doesn't reduce your reward). This incentivizes network growth and community building.</p>
+
+<h2>Links</h2>
+
+<ul>
+<li><strong>GitHub:</strong> <a href="https://github.com/Ponknot/Knotcoin">https://github.com/Ponknot/Knotcoin</a></li>
+<li><strong>Releases:</strong> <a href="https://github.com/Ponknot/Knotcoin/releases">https://github.com/Ponknot/Knotcoin/releases</a></li>
+<li><strong>Documentation:</strong> See README in repository</li>
+</ul>
+
+<h2>Bootstrap Nodes</h2>
+
+<p>The network includes seed nodes for initial peer discovery:</p>
+<ul>
+<li>IPv4: <code>223.185.60.199:9000</code></li>
+<li>IPv6: <code>[2401:4900:8834:deb3:71e1:5bd6:e430:e0ec]:9000</code></li>
+</ul>
+
+<h2>Technical Details</h2>
+
+<p><strong>Cryptography:</strong></p>
+<ul>
+<li>Signatures: Dilithium3 (ML-DSA-65, NIST FIPS 204)</li>
+<li>Hashing: SHA-512, SHA3-256, BLAKE3</li>
+<li>Wallet Encryption: AES-256-GCM, Argon2</li>
+</ul>
+
+<p><strong>Network:</strong></p>
+<ul>
+<li>P2P Port: 9000 (TCP)</li>
+<li>RPC Port: 9001 (localhost only)</li>
+<li>Web UI: 19001 (localhost only)</li>
+</ul>
+
+<p><strong>Data Storage:</strong></p>
+<ul>
+<li>Windows: <code>C:\Users\&lt;Username&gt;\.knotcoin\mainnet\</code></li>
+<li>macOS: <code>/Users/&lt;Username&gt;/.knotcoin/mainnet/</code></li>
+<li>Linux: <code>/home/&lt;Username&gt;/.knotcoin/mainnet/</code></li>
+</ul>
+
+<h2>Building from Source</h2>
+
+<pre style="background: #f4f4f4; padding: 10px;">
+git clone https://github.com/Ponknot/Knotcoin.git
+cd Knotcoin
+cargo build --release
+</pre>
+
+<p>Binaries will be in <code>target/release/</code></p>
+
+<h2>License</h2>
+
+<p>Open source. See LICENSE file in repository.</p>
+
+<hr>
+
+<p><em>Join the quantum-resistant blockchain revolution. Start mining today!</em></p>
+
+</div>

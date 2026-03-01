@@ -53,9 +53,13 @@ cd Knotcoin-linux-x64
 
 ### Bootstrap Nodes
 
-The network includes founder seed nodes for initial peer discovery:
-- IPv4: `223.185.60.199:9000`
-- IPv6: `[2401:4900:8834:deb3:71e1:5bd6:e430:e0ec]:9000`
+The network uses P2P peer discovery with DNS-based bootstrap:
+- DNS: `seed.knotcoin.network:9000`
+
+You can also specify custom bootstrap peers via environment variable:
+```bash
+export KNOTCOIN_BOOTSTRAP_PEERS="peer1.example.com:9000,peer2.example.com:9000"
+```
 
 ### Ports
 
