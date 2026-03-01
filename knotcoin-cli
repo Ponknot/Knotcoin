@@ -1,0 +1,38 @@
+#!/bin/bash
+# Knotcoin CLI - Simple wrapper for RPC calls
+
+RPC_URL="http://localhost:9001/rpc"
+COOKIE_FILE="$HOME/.knotcoin/mainnet/.cookie"
+
+if [ ! -f "$COOKIE_FILE" ]; then
+    echo "Error: Cookie file not found at $COOKIE_FILE"
+    echo "Is knotcoind running?"
+    exit 1
+fi
+
+AUTH_TOKEN=$(cat "$COOKIE_FILE")
+METHOD="$1"
+shift
+
+# Build params array
+PARAMS="[]"
+if [ $# -gt 0 ]; then
+    PARAMS="["
+    for arg in "$@"; do
+        if [ "$PARAMS" != "[" ]; then
+            PARAMS="$PARAMS,"
+        fi
+        # Check if arg is a number
+        if [[ "$arg" =~ ^[0-9]+$ ]]; then
+            PARAMS="$PARAMS$arg"
+        else
+            PARAMS="$PARAMS\"$arg\""
+        fi
+    done
+    PARAMS="$PARAMS]"
+fi
+
+# Make RPC call
+curl -s -X POST "$RPC_URL" \
+    -H "Authorization: Bearer $AUTH_TOKEN" \
+    -d "{\"jsonrpc\":\"2.0\",\"method\":\"$METHOD\",\"params\":$PARAMS,\"id\":1}" | jq -r '.result // .error // .'

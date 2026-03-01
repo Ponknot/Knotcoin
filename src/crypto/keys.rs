@@ -147,6 +147,13 @@ pub fn derive_account_seed(master_seed: &[u8; 64], account_index: u64) -> [u8; 6
     account_key
 }
 
+/// Helper to derive a full Dilithium3 keypair from a mnemonic (Account 0)
+pub fn derive_keypair_from_mnemonic(mnemonic: &str) -> (crate::crypto::dilithium::PublicKey, crate::crypto::dilithium::SecretKey) {
+    let master = derive_master_seed(mnemonic, "");
+    let account = derive_account_seed(&master, 0);
+    crate::crypto::dilithium::generate_keypair(&account)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

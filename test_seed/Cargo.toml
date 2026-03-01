@@ -1,0 +1,8 @@
+[package]
+name = "test_seed"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+fips204 = { version = "0.4.6" }
+rand_core = "0.6"

@@ -481,22 +481,26 @@ mod stress_tests {
         let params1 = crate::consensus::state::GovernanceParams {
             cap_bps: 1000,
             ponc_rounds: 5000,
+            mining_threads: 4,
         };
         db.set_governance_params(&params1).unwrap();
         
         let retrieved1 = db.get_governance_params().unwrap();
         assert_eq!(retrieved1.cap_bps, 1000);
         assert_eq!(retrieved1.ponc_rounds, 5000);
+        assert_eq!(retrieved1.mining_threads, 4);
 
         let params2 = crate::consensus::state::GovernanceParams {
             cap_bps: 2000,
             ponc_rounds: 10000,
+            mining_threads: 8,
         };
         db.set_governance_params(&params2).unwrap();
         
         let retrieved2 = db.get_governance_params().unwrap();
         assert_eq!(retrieved2.cap_bps, 2000);
         assert_eq!(retrieved2.ponc_rounds, 10000);
+        assert_eq!(retrieved2.mining_threads, 8);
     }
 
     // ========== SERIALIZATION TESTS ==========

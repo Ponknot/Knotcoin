@@ -115,6 +115,7 @@ impl Mempool {
                 }
                 // Replace it
                 self.entries.remove(&existing_txid);
+                self.by_sender_nonce.remove(&sender_nonce_key);
             }
         }
 
@@ -184,6 +185,18 @@ impl Mempool {
     pub fn size(&self) -> usize {
         self.entries.len()
     }
+
+    pub fn highest_pending_nonce_for_sender(&self, sender: &[u8; 32]) -> Option<u64> {
+        let mut max_nonce: Option<u64> = None;
+        for ((s, nonce), txid) in &self.by_sender_nonce {
+            if s == sender {
+                if self.entries.contains_key(txid) {
+                    max_nonce = Some(max_nonce.map(|m| m.max(*nonce)).unwrap_or(*nonce));
+                }
+            }
+        }
+        max_nonce
+    }
 }
 
 #[cfg(test)]
@@ -232,16 +245,16 @@ mod tests {
         }
     }
 
-    // convenience: fresh random keypair per call
-    fn mock_stored_tx(nonce: u64, fee: u64) -> StoredTransaction {
-        let (pk, sk) = dilithium::generate_keypair(&[0u8; 64]);
+    // convenience: fresh random-looking keypair per call
+    fn mock_stored_tx(nonce: u64, fee: u64, seed_byte: u8) -> StoredTransaction {
+        let (pk, sk) = dilithium::generate_keypair(&[seed_byte; 64]);
         mock_stored_tx_with_keys(&pk, &sk, nonce, fee)
     }
 
     #[test]
     fn test_add_and_retrieve() {
         let mut pool = Mempool::new();
-        let tx = mock_stored_tx(1, 100);
+        let tx = mock_stored_tx(1, 100, 1);
         assert!(pool.add_transaction(tx).unwrap());
         assert_eq!(pool.size(), 1);
     }
@@ -270,9 +283,9 @@ mod tests {
     #[test]
     fn test_fee_ordering() {
         let mut pool = Mempool::new();
-        pool.add_transaction(mock_stored_tx(1, 10)).unwrap();
-        pool.add_transaction(mock_stored_tx(1, 50)).unwrap();
-        pool.add_transaction(mock_stored_tx(1, 30)).unwrap();
+        pool.add_transaction(mock_stored_tx(1, 10, 1)).unwrap();
+        pool.add_transaction(mock_stored_tx(1, 50, 2)).unwrap();
+        pool.add_transaction(mock_stored_tx(1, 30, 3)).unwrap();
 
         let top = pool.get_top_transactions(2);
         assert_eq!(top.len(), 2);
@@ -282,7 +295,7 @@ mod tests {
     #[test]
     fn test_reject_zero_fee() {
         let mut pool = Mempool::new();
-        let tx = mock_stored_tx(1, 0);
+        let tx = mock_stored_tx(1, 0, 1);
         assert!(pool.add_transaction(tx).is_err());
     }
 }

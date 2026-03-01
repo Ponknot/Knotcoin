@@ -22,6 +22,13 @@ pub const PONC_ROUNDS_MIN: u64 = 256;
 pub const PONC_ROUNDS_MAX: u64 = 2048;
 pub const PONC_ROUNDS_DEFAULT: u64 = 512;
 
+// Mining thread count range (tunable via governance vote)
+// FAIRNESS: Start at 4 threads to level playing field
+// Community can vote to increase if network matures
+pub const MINING_THREADS_MIN: u64 = 1;
+pub const MINING_THREADS_MAX: u64 = 8;   // Hard cap for fairness
+pub const MINING_THREADS_DEFAULT: u64 = 4;  // Fair for laptops
+
 // Phase 1: linear ramp from 0.1 KOT to 1.0 KOT over 262,800 blocks.
 // Formula: reward = 0.1 + (0.9 * height / 262,800) KOT
 // In knots: 10M + (90M * height / 262,800)
@@ -85,18 +92,24 @@ pub fn calculate_block_reward(height: u64) -> u64 {
 // not deducted from the miner.
 pub fn calculate_referral_bonus(
     base_reward: u64,
+    referrer_total_mined: u64,
     referrer_last_mined: u64,
     current_height: u64,
 ) -> u64 {
-    if referrer_last_mined == 0 {
-        return 0; // Genesis miners have no referrers or reward window
-    }
-    // Threshold removed: referral bonus works for all reward sizes
-    // This ensures the referral system continues working in Phase 3
-    // when rewards drop below 1.0 KOT
-    if current_height.saturating_sub(referrer_last_mined) > REFERRAL_WINDOW {
+    // Referrer must be an active miner (mined at least one block)
+    if referrer_total_mined == 0 {
         return 0;
     }
+
+    // Referrer must be RECENTLY active (mined a block in the last 2880 blocks)
+    let activity_window = 2880;
+    let too_old = current_height > referrer_last_mined + activity_window && current_height > 0;
+    
+    if too_old {
+        return 0;
+    }
+
+    // 5% bonus
     (base_reward * REFERRAL_BONUS_PCT) / 100
 }
 
@@ -221,22 +234,25 @@ mod tests {
     // ========== REFERRAL BONUS TESTS ==========
     #[test]
     fn test_referral_bonus() {
-        assert_eq!(calculate_referral_bonus(100_000_000, 1000, 2000), 5_000_000);
-        assert_eq!(calculate_referral_bonus(100_000_000, 1000, 5000), 0);
+        // total_mined=100, last_mined=1000, current=2000 => OK
+        assert_eq!(calculate_referral_bonus(100_000_000, 100, 1000, 2000), 5_000_000);
+        // last_mined=1000, current=5000 => Too old
+        assert_eq!(calculate_referral_bonus(100_000_000, 100, 1000, 5000), 0);
     }
 
     #[test]
     fn test_referral_bonus_no_threshold() {
-        // Test that referral works for small rewards (no threshold)
-        assert_eq!(calculate_referral_bonus(1_000, 1000, 2000), 50); // 5% of 1000
-        assert_eq!(calculate_referral_bonus(100, 1000, 2000), 5); // 5% of 100
-        assert_eq!(calculate_referral_bonus(10, 1000, 2000), 0); // 5% of 10 = 0.5, rounds to 0
+        assert_eq!(calculate_referral_bonus(1_000, 10, 1000, 2000), 50);
+        assert_eq!(calculate_referral_bonus(100, 10, 1000, 2000), 5);
+        assert_eq!(calculate_referral_bonus(10, 10, 1000, 2000), 0);
     }
 
     #[test]
     fn test_referral_bonus_genesis_miner() {
-        // Genesis miners (last_mined = 0) get no bonus
-        assert_eq!(calculate_referral_bonus(100_000_000, 0, 1000), 0);
+        // Genesis miner (total=1, last=0) IS active for first 2880 blocks
+        assert_eq!(calculate_referral_bonus(100_000_000, 1, 0, 1000), 5_000_000);
+        // Non-miner (total=0) get no bonus
+        assert_eq!(calculate_referral_bonus(100_000_000, 0, 0, 1000), 0);
     }
 
     #[test]
@@ -245,17 +261,17 @@ mod tests {
         let referrer_height = 1000;
         
         // Just inside window
-        assert_eq!(calculate_referral_bonus(base, referrer_height, referrer_height + REFERRAL_WINDOW), 5_000_000);
+        assert_eq!(calculate_referral_bonus(base, 1, referrer_height, referrer_height + REFERRAL_WINDOW), 5_000_000);
         
         // Just outside window
-        assert_eq!(calculate_referral_bonus(base, referrer_height, referrer_height + REFERRAL_WINDOW + 1), 0);
+        assert_eq!(calculate_referral_bonus(base, 1, referrer_height, referrer_height + REFERRAL_WINDOW + 1), 0);
     }
 
     #[test]
     fn test_referral_bonus_percentage() {
         // Verify 5% calculation is exact
         for reward in [1_000_000, 10_000_000, 100_000_000, 1_000_000_000] {
-            let bonus = calculate_referral_bonus(reward, 100, 200);
+            let bonus = calculate_referral_bonus(reward, 1, 100, 200);
             assert_eq!(bonus, reward / 20); // 5% = 1/20
         }
     }

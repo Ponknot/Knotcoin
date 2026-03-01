@@ -138,6 +138,66 @@ Can be changed via governance:
 
 ---
 
+## [1.0.2] - 2026-03-01
+
+### P2P Network Improvements
+
+**Bitcoin-style peer discovery**
+- Added `GetAddr` message for requesting peers from connected nodes
+- Nodes automatically exchange peer lists after handshake
+- Network grows organically as users connect and share peers
+- Seed nodes bootstrap new users, then network becomes self-sustaining
+
+**24/7 Seed Node**
+- Founder's node runs continuously for network bootstrap
+- Auto-restarts on crash or system reboot
+- New users connect automatically without manual configuration
+
+### Wallet Improvements
+
+**Key backup and recovery**
+- Wallet keys now backed up before reset
+- Re-importing same mnemonic restores original address
+- Clear warning about Dilithium3 key persistence in Settings
+
+**Post-quantum notice**
+- Added explanation that Dilithium3 keys cannot be regenerated from mnemonic alone
+- Users reminded to backup `wallet_keys.json` along with mnemonic
+
+### Network Visualization (Bubble Map)
+
+**Interactive features**
+- Bubbles are now draggable - click and drag to rearrange
+- Positions persist across redraws
+- Referral connections shown as green gradient arrows
+- Arrow heads point from referred to referrer
+
+**Real-time stats**
+- Tooltip shows blocks mined, balance, and total rewards
+- Mining status indicator with glow effect
+- Referrer address displayed in tooltip
+- Updates every 2 seconds for real-time feel
+
+### UI Polish
+
+**Logo and branding**
+- Updated K logo with green glow shadow
+- Larger logo mark (32x32px) with rounded corners
+
+**Electron app**
+- Detects if knotcoind already running and connects to it
+- Serves static files for browser preview testing
+- Avoids database lock conflicts with seed node
+
+### Bug Fixes
+
+- Fixed bubble map not being draggable
+- Fixed browser preview returning "Not Found"
+- Fixed referral arrows not visible
+- Improved tooltip styling and positioning
+
+---
+
 ## [Unreleased]
 
 ### Planned for Phase 2
@@ -154,4 +214,5 @@ Can be changed via governance:
 
 ---
 
+[1.0.2]: https://github.com/Ponknot/Knotcoin/releases/tag/v1.0.2
 [1.0.0]: https://github.com/Ponknot/Knotcoin/releases/tag/v1.0.0

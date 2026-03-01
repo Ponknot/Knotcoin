@@ -1,19 +1,25 @@
 # Build output
 /target*
 dist/
+docs/
+
+# Tauri build artifacts (massive - never commit)
+src-tauri/target/
+src-tauri/node_modules/
 
 # OS files
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Editor files
+# Editor / IDE files
 .idea/
 .vscode/
+.kiro/
 *.swp
 *~
 
-# Never commit these
+# Secrets - never commit
 .env
 *.pem
 *.key
@@ -21,80 +27,127 @@ wallet.dat
 *.dat
 config.local.toml
 
-# Logs — never commit logs that might contain IP addresses
+# Logs (may contain IP addresses)
 *.log
 logs/
 
-# Node modules (if any frontend tooling is ever added)
+# Node modules
 node_modules/
+package-lock.json
 
-# Internal documentation (not for public repo)
-AUDIT_COMPLETE_*.md
-OPTIMIZATIONS_*.md
-share/explorer/README.md
-
-# Temporary analysis and verification files (internal use only)
-ACTUAL_IMPLEMENTATION_STATUS.md
-BACKEND_AUDIT_RESULTS.md
-CODE_QUALITY_BREAKDOWN.md
-CODE_QUALITY_CERTIFICATION.md
+# ============================================================
+# AI / session artifacts - NEVER commit
+# Catch-all patterns for generated documentation trash
+# ============================================================
+ACTUAL_*.md
+AUDIT_*.md
+BACKEND_*.md
+BLOCKCHAIN_FIXES*.md
+BOOTSTRAP_FIX.md
+CODE_QUALITY_*.md
 COMPLETION_REPORT.md
-COMPREHENSIVE_SYSTEM_ANALYSIS.md
-CONTEXT_TRANSFER_COMPLETE.md
-EXACT_5_POINT_ISSUES.md
-EXPLORER_COMPLETION_CHECKLIST.md
-EXPLORER_V1.0_COMPLETE.md
-FINAL_ACCURATE_STATUS.md
-FINAL_ANSWER_REFERRAL_FOREVER.md
-FINAL_LOCK_READY_FOR_GENESIS.md
-FINAL_PRE_GENESIS_AUDIT.md
-FINAL_STATUS.md
-GENESIS_DEPLOYMENT_READY.txt
-GENESIS_LAUNCH_PLAN.md
-GOVERNANCE_CAP_ANALYSIS.md
-HYPOTHETICAL_LAUNCH_SCENARIO.md
-IMMUTABILITY_ANALYSIS.md
-IMMUTABLE_CONSENSUS_STRESS_TEST.md
-LIGHT_NODE_ANALYSIS.md
+COMPREHENSIVE_*.md
+CONTEXT_TRANSFER*.md
+CURRENT_STATUS.md
+DMG_AUDIT_CHECKLIST.md
+DILITHIUM_SOLUTION.md
+EASY_UPDATE_GUIDE.md
+ENTERPRISE_*.md
+EXACT_*.md
+EXPLORER_*.md
+FINAL_*.md
+FIXES_APPLIED.md
+"Fixing Integration Tests.md"
+GENESIS_*.md
+GOVERNANCE_*.md
+HYPOTHETICAL_*.md
+IMMUT*.md
+KNOTCOIN_APP_SPECIFICATION.md
+KNOTCOIN_COMPLETE_FIXES.md
+KNOTCOIN_UI_FIXES_COMPLETE.md
+LAUNCH_*.md
+LIGHT_NODE_*.md
 LIVE_SIMULATION_GUIDE.md
+MAINNET_*.md
+OPUS_WORK_SUMMARY.md
+OPTIMIZATIONS_*.md
 PHASE2_PROGRESS.md
-PRE_GENESIS_CHECKLIST.md
-PRE_GENESIS_FIXES.md
-PRE_GENESIS_IMPLEMENTATION_COMPLETE.md
+POST_GENESIS_*.md
+PRE_GENESIS_*.md
 QUICK_START.md
-REFERRAL_TOKENOMICS_VERIFICATION.md
-RELEASE_NOTES_v1.0.md
-SECURITY_AUDIT_REFERRAL_GOVERNANCE.md
-SESSION_COMPLETE.md
-SESSION_SUMMARY.md
-SYSTEM_READY_FOR_GENESIS.md
-TEST_COVERAGE_COMPLETE.md
+REFERRAL_*.md
+RELEASE_*.md
+SECURITY_AUDIT*.md
+SESSION_*.md
+SIMPLE_BITCOIN_UI_COMPLETE.md
+SYSTEM_READY_*.md
+TAURI_BUILD_SUCCESS.md
+TAURI_COMPLETE_IMPLEMENTATION.md
+TAURI_FINAL_BUILD.md
+TAURI_FIXES_COMPLETE.md
+TAURI_REDESIGN_COMPLETE.md
+TAURI_SETUP_COMPLETE.md
+TEST_COVERAGE_*.md
+UPDATE_RELEASE_INSTRUCTIONS.md
+VERIFIED_*.md
+WORKING_SETUP.md
 YOUR_QUESTIONS_ANSWERED.md
+BITCOINTALK_*.md
+BITCOINTALK_*.txt
 
-# Temporary test and verification scripts
+# Internal shell scripts (not project code)
 audit_code_quality.sh
+build_complete_dmg.sh
+build_complete_tauri.sh
+build_cross_platform.sh
+build_docker.sh
+build_macos_app.sh
+build_public_release.sh
+build_release_all_platforms.sh
+build_tauri.sh
+build_tauri_apps.sh
+bump_version.sh
+clean_for_github.sh
+cleanup_clutter.sh
 deep_code_audit.sh
+enable_public_p2p.sh
 final_check.sh
 final_system_verification.sh
-final_verification_results.txt
-full_verification.txt
+prepare_tauri_build.sh
 quick_final_verification.sh
 quick_immutable_test.sh
 run_live_simulation.sh
+setup_tauri.sh
+start_explorer.sh
 stress_test_immutable_consensus.sh
-stress_test_results.txt
 test_browser_compat.html
 test_explorer_e2e.sh
 test_referral_decay
 test_referral_decay.rs
 test_simulation.sh
 update_release.sh
-verification_results.txt
 verify_complete_system.sh
 verify_final.sh
 
-# Explorer internal docs
+# Verification output
+final_verification_results.txt
+full_verification.txt
+stress_test_results.txt
+verification_results.txt
+
+# Explorer internal / backup files
+share/explorer/README.md
 share/explorer/PRODUCTION_READY.md
+share/explorer/app-complete.js
+share/explorer/app-full.js
+share/explorer/app-new.js
+share/explorer/app_old.js
+share/explorer/index-pages.html
+share/explorer/index_old.html
+share/explorer/tauri-integration_old.js
+share/explorer/wallet_test.html
+share/explorer/knotcoin-app.html
+share/explorer/knotcoin-core.js
 
 # Backup files - never commit
 *.bak
@@ -103,46 +156,27 @@ share/explorer/PRODUCTION_READY.md
 *.private_backup
 *.old
 
+# Duplicate source files
+"src/config 2.rs"
+
 # Test files with potentially sensitive data
 /tmp/test_*.html
-share/explorer/wallet_test.html
 src/bin/test_mnemonic.rs
 
-# Build scripts (internal use)
-build_docker.sh
-build_public_release.sh
-enable_public_p2p.sh
-
-# Documentation files (internal planning, not for public repo)
-ANONYMITY_GUIDE.md
-AUDIT_SUMMARY.md
-AUDIT_VERIFICATION_MATRIX.md
-COMPLETE_ANONYMITY_STRATEGY.md
-COMPLETE_AUDIT_LOG.md
-DEPENDENCY_AND_QUALITY_AUDIT.md
-DILITHIUM_SOLUTION.md
-ENTERPRISE_AUDIT_COMPLETE.md
-GENESIS_COMPLETE_NEXT_STEPS.md
-GENESIS_MINING_CLI_GUIDE.md
-GENESIS_MINING_SUCCESS.md
-GOVERNANCE_REFERRAL_VERIFICATION.md
-LAUNCH_ANNOUNCEMENT.md
-LAUNCH_PLAN.md
-MAINNET_AUDIT_CHECKLIST.md
-MAINNET_READINESS_CHECKLIST.md
-POST_GENESIS_NETWORK_LAUNCH.md
-VERIFIED_AUDIT_SUMMARY.md
-
-# Bitcointalk and announcement files
-BITCOINTALK_*.md
-BITCOINTALK_*.txt
-
-# Tor configuration
+# Tor configuration (contains node addresses)
 torrc-*
 
-# Version bump scripts
-bump_version.sh
-
-# Temporary Docker files
+# Dockerfiles (internal build tooling)
 Dockerfile.linux
 Dockerfile.windows
+
+# App icon source (not needed in repo - embedded in builds)
+app-icon.png
+
+# Windows batch file
+start-knotcoin.bat
+
+# Connection test file
+test_connection.html
+share/explorer/tauri-integration.js
+"Fixing Integration Tests.md"

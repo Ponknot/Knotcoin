@@ -4,19 +4,23 @@
 // We use the Dilithium3 parameter set, which provides NIST Security Level 3
 // (equivalent to AES-192 or SHA-384 against quantum computers).
 //
-// Key sizes:
+// Key sizes (pqcrypto_dilithium reference implementation):
 //   Public key  : 1,952 bytes
 //   Secret key  : 4,032 bytes
 //   Signature   : 3,309 bytes
 //
-// Dilithium3 produces compact signatures (3.3 KB) which reduces blockchain bandwidth.
-// Most importantly, it supports deterministic key generation from a seed,
-// enabling reliable wallet recovery from BIP-39 mnemonic phrases.
+// NOTE: Key generation is non-deterministic (uses OS randomness).
+// Wallet identity stability across restarts is achieved via wallet_keys.json
+// persistence on disk. The mnemonic serves as a wallet identifier (hash-keyed
+// lookup) rather than a deterministic seed for Dilithium keygen.
 
 use pqcrypto_dilithium::dilithium3;
 use pqcrypto_traits::sign::{
     DetachedSignature as PqDetachedSig, PublicKey as PqPk, SecretKey as PqSk,
 };
+use fips204::traits::SerDes;
+use rand_chacha::ChaCha20Rng;
+use rand_core::SeedableRng;
 
 pub const DILITHIUM3_PUBKEY_BYTES: usize = 1952;
 pub const DILITHIUM3_PRIVKEY_BYTES: usize = 4032;
@@ -55,6 +59,7 @@ impl std::fmt::Debug for PublicKey {
     }
 }
 
+#[derive(Clone)]
 pub struct SecretKey(pub [u8; DILITHIUM3_PRIVKEY_BYTES]);
 
 impl std::fmt::Debug for SecretKey {
@@ -96,25 +101,25 @@ impl std::fmt::Debug for Signature {
     }
 }
 
-/// Generates a Dilithium3 keypair deterministically from a 64-byte seed.
-/// This ensures that the same mnemonic always recovers the same wallet.
-///
-/// The seed is expanded using SHAKE-256 (part of the SHA-3 family) to produce
-/// the required key material. This is the standard approach for Dilithium.
+/// Generates a Dilithium3 keypair DETERMINISTICALLY from a 64-byte seed.
+/// This ensures the same mnemonic always produces the same address and keys even if wallet_keys.json is lost.
+/// 
+/// Uses ChaCha20 RNG seeded with the 64-byte input for cryptographically secure deterministic generation.
 pub fn generate_keypair(seed: &[u8; 64]) -> (PublicKey, SecretKey) {
-    use rand_chacha::ChaCha20Rng;
-    use rand_core::SeedableRng;
+    // Create deterministic RNG from seed using ChaCha20 (cryptographically secure)
+    let mut seed_32 = [0u8; 32];
+    seed_32.copy_from_slice(&seed[0..32]); // Use first 32 bytes as ChaCha20 seed
+    let mut rng = ChaCha20Rng::from_seed(seed_32);
     
-    let mut rng_seed = [0u8; 32];
-    rng_seed.copy_from_slice(&seed[..32]);
-    let _rng = ChaCha20Rng::from_seed(rng_seed);
-    
-    let (pq_pk, pq_sk) = dilithium3::keypair();
-    
+    // Generate deterministic keys matching ML-DSA-65 (Dilithium3)
+    let (fips_pk, fips_sk) = fips204::ml_dsa_65::try_keygen_with_rng(&mut rng)
+        .expect("Deterministic keygen failed");
+
     let mut pk = [0u8; DILITHIUM3_PUBKEY_BYTES];
     let mut sk = [0u8; DILITHIUM3_PRIVKEY_BYTES];
-    pk.copy_from_slice(PqPk::as_bytes(&pq_pk));
-    sk.copy_from_slice(PqSk::as_bytes(&pq_sk));
+    
+    pk.copy_from_slice(&fips_pk.into_bytes());
+    sk.copy_from_slice(&fips_sk.into_bytes());
 
     (PublicKey(pk), SecretKey(sk))
 }
@@ -184,10 +189,7 @@ mod tests {
         let (pk, sk) = generate_keypair(&[0u8; 64]);
         let msg = b"knotcoin";
         let mut sig = sign(msg, &sk);
-        
-        // Flip one byte
         sig.0[100] ^= 0xFF;
-        
         assert!(!verify(msg, &sig, &pk), "corrupted signature must fail");
     }
 
@@ -198,5 +200,21 @@ mod tests {
         assert_eq!(sk.0.len(), DILITHIUM3_PRIVKEY_BYTES);
         assert_eq!(DILITHIUM3_PUBKEY_BYTES, 1952);
         assert_eq!(DILITHIUM3_PRIVKEY_BYTES, 4032);
+    }
+
+    #[test]
+    fn test_deterministic_keygen() {
+        // Same seed must produce same keys
+        let seed = [42u8; 64];
+        let (pk1, sk1) = generate_keypair(&seed);
+        let (pk2, sk2) = generate_keypair(&seed);
+        
+        assert_eq!(pk1.0, pk2.0, "Same seed must produce same public key");
+        assert_eq!(sk1.0, sk2.0, "Same seed must produce same secret key");
+        
+        // Different seed must produce different keys
+        let seed2 = [43u8; 64];
+        let (pk3, _sk3) = generate_keypair(&seed2);
+        assert_ne!(pk1.0, pk3.0, "Different seeds must produce different keys");
     }
 }

@@ -1,0 +1,87 @@
+{
+  "name": "knotcoin-wallet",
+  "version": "1.0.2",
+  "private": true,
+  "main": "main.js",
+  "description": "Knotcoin Desktop Wallet",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ponknot/Knotcoin.git"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dist:mac:arm64": "electron-builder --mac dmg --arm64",
+    "dist:win:x64": "electron-builder --win nsis --x64",
+    "dist:linux:x64": "electron-builder --linux AppImage deb --x64"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.knotcoin.wallet",
+    "productName": "Knotcoin",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer.html"
+    ],
+    "extraResources": [
+      {
+        "from": "../src-tauri/icons/icon.png",
+        "to": "icon.png"
+      },
+      {
+        "from": "../share/explorer",
+        "to": "explorer",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "./binaries",
+        "to": "binaries",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "mac": {
+      "icon": "icon.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.finance"
+    },
+    "win": {
+      "icon": "icon.ico",
+      "target": [
+        "nsis"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Finance"
+    },
+    "publish": [
+      {
+        "provider": "github"
+      }
+    ]
+  }
+}

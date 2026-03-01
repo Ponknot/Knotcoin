@@ -15,6 +15,49 @@ fn tmp_db() -> ChainDB {
     ChainDB::open(&p).unwrap()
 }
 
+fn create_signed_tx(seed_val: u8, nonce: u64, amount: u64, fee: u64) -> (StoredTransaction, [u8; 32], [u8; 32]) {
+    use knotcoin::crypto::dilithium;
+    use knotcoin::crypto::keys;
+    use knotcoin::primitives::transaction::Transaction;
+
+    let (pk, sk) = dilithium::generate_keypair(&[seed_val; 64]);
+    let sender = keys::derive_address(&pk);
+    let recipient = [0xEEu8; 32];
+
+    let mut tx = Transaction {
+        version: 1,
+        sender_address: sender,
+        sender_pubkey: pk,
+        recipient_address: recipient,
+        amount,
+        fee,
+        nonce,
+        timestamp: 1000,
+        referrer_address: None,
+        governance_data: None,
+        signature: dilithium::Signature([0u8; 3309]),
+    };
+
+    let sig = dilithium::sign(&tx.signing_hash(), &sk);
+    tx.signature = sig;
+
+    let stored = StoredTransaction {
+        version: tx.version,
+        sender_address: tx.sender_address,
+        sender_pubkey: tx.sender_pubkey.0.to_vec(),
+        recipient_address: tx.recipient_address,
+        amount: tx.amount,
+        fee: tx.fee,
+        nonce: tx.nonce,
+        timestamp: tx.timestamp,
+        referrer_address: tx.referrer_address,
+        governance_data: tx.governance_data,
+        signature: tx.signature.0.to_vec(),
+    };
+
+    (stored, sender, recipient)
+}
+
 // ========== DATABASE ↔ CONSENSUS INTEGRATION ==========
 
 #[test]
@@ -115,8 +158,8 @@ fn test_multi_block_chain_building() {
 #[test]
 fn test_transaction_processing_updates_accounts() {
     let db = tmp_db();
-    let sender = [0x11u8; 32];
-    let recipient = [0x22u8; 32];
+    // Create block with transaction
+    let (tx, sender, recipient) = create_signed_tx(1, 1, 100_000, 1_000);
     
     // Setup: sender has balance
     let sender_state = AccountState {
@@ -130,21 +173,6 @@ fn test_transaction_processing_updates_accounts() {
         total_blocks_mined: 0,
     };
     db.put_account(&sender, &sender_state).unwrap();
-    
-    // Create block with transaction
-    let tx = StoredTransaction {
-        version: 1,
-        sender_address: sender,
-        sender_pubkey: vec![0u8; 32],
-        recipient_address: recipient,
-        amount: 100_000,
-        fee: 1_000,
-        nonce: 1,
-        timestamp: 1000,
-        referrer_address: None,
-        governance_data: None,
-        signature: vec![0u8; 64],
-    };
     
     let block = StoredBlock {
         version: [0, 0, 0, 1],
@@ -279,6 +307,7 @@ fn test_governance_params_persistence() {
     let params = GovernanceParams {
         cap_bps: 1500,
         ponc_rounds: 8000,
+        mining_threads: 4,
     };
     db.set_governance_params(&params).unwrap();
     
@@ -379,21 +408,15 @@ fn test_block_with_max_transactions() {
     
     // Create block with many transactions
     let mut txs = Vec::new();
-    for i in 0..10 {
-        let tx = StoredTransaction {
-            version: 1,
-            sender_address: [i as u8; 32],
-            sender_pubkey: vec![0u8; 32],
-            recipient_address: [(i + 1) as u8; 32],
-            amount: 100_000,
-            fee: 1_000,
-            nonce: 1,
-            timestamp: 1000 + i as u64,
-            referrer_address: None,
-            governance_data: None,
-            signature: vec![0u8; 64],
-        };
+    let mut senders = Vec::new();
+    for i in 1..=10 {
+        let (tx, sender, _) = create_signed_tx(i as u8, 1, 100_000, 1_000);
+        // Fund sender
+        let mut state = AccountState::empty();
+        state.balance = 10_000_000;
+        db.put_account(&sender, &state).unwrap();
         txs.push(tx);
+        senders.push(sender);
     }
     
     let block = StoredBlock {
@@ -411,8 +434,7 @@ fn test_block_with_max_transactions() {
     apply_block(&db, &block).unwrap();
     
     // Verify all transactions processed
-    for i in 0..10 {
-        let sender = [i as u8; 32];
+    for sender in senders {
         let acc = db.get_account(&sender).unwrap();
         assert_eq!(acc.balance, 10_000_000 - 100_000 - 1_000);
         assert_eq!(acc.nonce, 1);

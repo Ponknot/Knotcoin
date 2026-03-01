@@ -23,7 +23,7 @@ const ARGON2_P_COST: u32 = 4; // 4 parallelism
 
 const SALT_LEN: usize = 32;
 const NONCE_LEN: usize = 12;
-const SECRET_KEY_LEN: usize = 64; // Dilithium3 secret key size
+const SECRET_KEY_LEN: usize = 4032; // Dilithium3 secret key size (NIST FIPS 204)
 
 #[derive(Debug)]
 pub enum KeystoreError {
@@ -170,7 +170,7 @@ mod tests {
 
     #[test]
     fn test_encrypt_decrypt() {
-        let secret_key = [42u8; 64];
+        let secret_key = [42u8; 4032];
         let password = "correct horse battery staple";
 
         let keystore = EncryptedKeystore::encrypt(&secret_key, password).unwrap();
@@ -181,7 +181,7 @@ mod tests {
 
     #[test]
     fn test_wrong_password() {
-        let secret_key = [42u8; 64];
+        let secret_key = [42u8; 4032];
         let password = "correct password";
 
         let keystore = EncryptedKeystore::encrypt(&secret_key, password).unwrap();
@@ -192,7 +192,7 @@ mod tests {
 
     #[test]
     fn test_different_nonces() {
-        let secret_key = [42u8; 64];
+        let secret_key = [42u8; 4032];
         let password = "test";
 
         let ks1 = EncryptedKeystore::encrypt(&secret_key, password).unwrap();
@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn test_file_roundtrip() {
-        let secret_key = [99u8; 64];
+        let secret_key = [99u8; 4032];
         let password = "file test password";
         let path = "/tmp/knotcoin_keystore_test.dat";
 

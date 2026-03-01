@@ -1,6 +1,6 @@
 use crate::consensus::chain::{
     calculate_block_reward, calculate_governance_weight, calculate_referral_bonus,
-    GOVERNANCE_CAP_DEFAULT_BPS, PONC_ROUNDS_DEFAULT,
+    GOVERNANCE_CAP_DEFAULT_BPS, PONC_ROUNDS_DEFAULT, MINING_THREADS_DEFAULT,
 };
 use crate::crypto::hash::hash_sha3_256;
 use crate::crypto::ponc::ffi::bridge::new_ponc_engine;
@@ -11,6 +11,7 @@ use crate::primitives::transaction::Transaction;
 pub struct GovernanceParams {
     pub cap_bps: u64,
     pub ponc_rounds: u64,
+    pub mining_threads: u64,  // NEW: Governance-controlled thread count
 }
 
 impl Default for GovernanceParams {
@@ -18,6 +19,7 @@ impl Default for GovernanceParams {
         Self {
             cap_bps: GOVERNANCE_CAP_DEFAULT_BPS,
             ponc_rounds: PONC_ROUNDS_DEFAULT,
+            mining_threads: MINING_THREADS_DEFAULT,
         }
     }
 }
@@ -117,6 +119,11 @@ pub fn verify_block_pow(block: &StoredBlock, db: &ChainDB) -> Result<(), StateEr
 }
 
 pub fn apply_block(db: &ChainDB, block: &StoredBlock) -> Result<(), StateError> {
+    apply_block_with_referrer(db, block, None)
+}
+
+/// Apply block with optional referrer registration for the miner's first block
+pub fn apply_block_with_referrer(db: &ChainDB, block: &StoredBlock, pending_referrer: Option<[u8; 32]>) -> Result<(), StateError> {
     let height = u32::from_le_bytes(block.block_height) as u64;
     let block_time = u32::from_le_bytes(block.timestamp);
 
@@ -171,10 +178,24 @@ pub fn apply_block(db: &ChainDB, block: &StoredBlock) -> Result<(), StateError> 
     miner_acc.total_blocks_mined = miner_acc.total_blocks_mined.saturating_add(1);
     miner_acc.governance_weight = calculate_governance_weight(miner_acc.total_blocks_mined);
 
+    // Auto-register referrer on first block mined (if pending_referrer provided and no referrer set yet)
+    if miner_acc.referrer.is_none() && miner_acc.total_blocks_mined == 1 {
+        if let Some(ref_addr) = pending_referrer {
+            if ref_addr != block.miner_address {
+                miner_acc.referrer = Some(ref_addr);
+                let mut upstream = get_account_local(&ref_addr, &account_updates, db);
+                upstream.total_referred_miners = upstream.total_referred_miners.saturating_add(1);
+                upstream.governance_weight = calculate_governance_weight(upstream.total_referred_miners);
+                account_updates.insert(ref_addr, upstream);
+                println!("[referral] Auto-registered referrer for new miner");
+            }
+        }
+    }
+
     // Referral bonus
     if let Some(ref_addr) = miner_acc.referrer {
         let mut referrer = get_account_local(&ref_addr, &account_updates, db);
-        let bonus = calculate_referral_bonus(base_reward, referrer.last_mined_height, height);
+        let bonus = calculate_referral_bonus(base_reward, referrer.total_blocks_mined, referrer.last_mined_height, height);
         if bonus > 0 {
             referrer.balance = referrer.balance.checked_add(bonus).ok_or(StateError::MathOverflow)?;
             referrer.total_referral_bonus_earned = referrer.total_referral_bonus_earned.checked_add(bonus).ok_or(StateError::MathOverflow)?;

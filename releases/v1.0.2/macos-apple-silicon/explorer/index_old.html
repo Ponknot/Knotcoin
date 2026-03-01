@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knotcoin — Quantum-Secure Electronic Cash</title>
+  <meta name="description"
+    content="Knotcoin desktop wallet. Mine, send, receive, and govern a quantum-resistant peer-to-peer currency.">
+  <link rel="stylesheet" href="knotcoin_style.css">
+
+<body>
+  <!-- DEBUG TRACE -->
+  <script>
+    window.onerror = function (msg, src, line, col, err) {
+      console.error("WEBVIEW CRASH [" + src + ":" + line + "]: " + msg);
+      if (window.__TAURI__) { window.__TAURI__.invoke('print_to_console', { msg: "JS CRASH: " + msg }); }
+    };
+    window.addEventListener('unhandledrejection', function (e) {
+      console.error("WEBVIEW PROMISE CRASH:", e.reason);
+    });
+  </script>
+
+  <!-- ═══════ ONBOARDING OVERLAY ═══════ -->
+  <div id="onboarding" class="onboarding-overlay">
+    <div class="onboarding-card" id="onboard-welcome">
+      <div class="onboarding-title">Knotcoin</div>
+      <div class="onboarding-sub">Quantum-secure peer-to-peer electronic cash</div>
+      <div class="onboarding-actions">
+        <button id="action-btn-1" class="btn btn-primary btn-block">Create New Wallet</button>
+        <button id="action-btn-2" class="btn btn-secondary btn-block">Import Existing Wallet</button>
+      </div>
+    </div>
+
+    <div class="onboarding-card hidden" id="onboard-referral">
+      <div style="background: linear-gradient(135deg, #00d4aa 0%, #4da6ff 100%); padding: 20px; border-radius: 12px; margin-bottom: 24px; text-align: center;">
+        <div style="font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 8px;">🎉 World's First Referral-Based PoW Blockchain!</div>
+        <div style="font-size: 13px; color: rgba(255,255,255,0.95); line-height: 1.5;">
+          Earn 5% bonus on every block your referrals mine.<br/>
+          Protocol-minted rewards • No limits • Forever passive income
+        </div>
+      </div>
+      <div class="onboarding-title">Referral Program</div>
+      <div class="onboarding-sub">Were you referred by someone? Enter their code below to support them!</div>
+      <div class="form-group mt-16">
+        <label class="form-label">Referral Code (optional)</label>
+        <input type="text" class="form-input" id="create-referral" placeholder="Enter referral code or leave blank">
+      </div>
+      <div class="mt-16">
+        <button id="action-btn-15" class="btn btn-primary btn-block">Continue</button>
+      </div>
+      <div class="mt-8">
+        <button id="action-btn-16" class="btn btn-secondary btn-block btn-sm">Back</button>
+      </div>
+    </div>
+
+    <div class="onboarding-card hidden" id="onboard-create">
+      <div class="onboarding-title">New Wallet</div>
+      <div class="onboarding-sub">Write down these 24 words. They are your only backup.</div>
+      <div class="mnemonic-display" id="mnemonic-words">Loading...</div>
+      <div class="mt-16">
+        <button class="btn btn-primary btn-block" id="btn-confirm-create">I Saved My
+          Mnemonic</button>
+      </div>
+    </div>
+
+    <div class="onboarding-card hidden" id="onboard-import">
+      <div style="background: linear-gradient(135deg, #00d4aa 0%, #4da6ff 100%); padding: 20px; border-radius: 12px; margin-bottom: 24px; text-align: center;">
+        <div style="font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 8px;">🎉 World's First Referral-Based PoW Blockchain!</div>
+        <div style="font-size: 13px; color: rgba(255,255,255,0.95); line-height: 1.5;">
+          Earn 5% bonus on every block your referrals mine.<br/>
+          Share your link • Grow your network • Earn forever
+        </div>
+      </div>
+      <div class="onboarding-title">Import Wallet</div>
+      <div class="onboarding-sub">Enter your 24-word mnemonic phrase</div>
+      <div class="form-group">
+        <textarea class="form-input" id="import-mnemonic" rows="4" placeholder="word1 word2 word3 ..."></textarea>
+      </div>
+      <div class="mt-16">
+        <button id="action-btn-4" class="btn btn-primary btn-block">Import Wallet</button>
+      </div>
+      <div class="mt-8">
+        <button id="action-btn-5" class="btn btn-secondary btn-block btn-sm">Back</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ TOAST CONTAINER ═══════ -->
+  <div class="toast-container" id="toasts"></div>
+
+  <!-- ═══════ MAIN APP ═══════ -->
+  <div id="app" class="hidden">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">KNOTCOIN</div>
+        <div class="sidebar-version">v1.0.2 mainnet</div>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-tab="home">
+          <span class="nav-indicator"></span>Home
+        </button>
+        <button class="nav-item" data-tab="wallet">
+          <span class="nav-indicator"></span>Wallet
+        </button>
+        <button class="nav-item" data-tab="mining">
+          <span class="nav-indicator"></span>Mining
+        </button>
+        <button class="nav-item" data-tab="referrals">
+          <span class="nav-indicator"></span>Referrals
+        </button>
+        <button class="nav-item" data-tab="governance">
+          <span class="nav-indicator"></span>Governance
+        </button>
+        <button class="nav-item" data-tab="settings">
+          <span class="nav-indicator"></span>Settings
+        </button>
+        <button class="nav-item" data-tab="explorer">
+          <span class="nav-indicator"></span>Block Explorer
+        </button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="node-status">
+          <span class="status-dot" id="node-dot"></span>
+          <span id="node-label">Connecting...</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CONTENT AREA -->
+    <div class="main-content">
+
+      <!-- ═══════ HOME TAB ═══════ -->
+      <div class="tab-content active" id="tab-home">
+        <div class="page-header">
+          <div class="page-title">Network Overview</div>
+          <div class="page-subtitle">Real-time chain data from your local node</div>
+        </div>
+        <div class="page-body">
+          <div class="stat-grid">
+            <div class="stat-item">
+              <div class="stat-label">Block Height</div>
+              <div class="stat-value" id="stat-height">—</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Network Hashrate</div>
+              <div class="stat-value" id="stat-hashrate">—</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Difficulty</div>
+              <div class="stat-value" id="stat-difficulty">—</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Peers</div>
+              <div class="stat-value" id="stat-peers">0</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Known Addresses</div>
+              <div class="stat-value" id="stat-holders">—</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Mempool</div>
+              <div class="stat-value" id="stat-mempool">—</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Network Map</span>
+              <span style="font-size:11px;color:var(--text-muted)">Miners, referrals, activity</span>
+            </div>
+            <div id="network-viz">
+              <div class="viz-tooltip" id="viz-tooltip"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Recent Blocks</span>
+            </div>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Height</th>
+                  <th>Miner</th>
+                  <th>Txns</th>
+                  <th>Reward</th>
+                  <th>Time</th>
+                </tr>
+              </thead>
+              <tbody id="recent-blocks"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════ WALLET TAB ═══════ -->
+      <div class="tab-content" id="tab-wallet">
+        <div class="page-header">
+          <div class="page-title">Wallet</div>
+          <div class="page-subtitle">Send and receive KOT</div>
+        </div>
+        <div class="page-body">
+          <div class="card">
+            <div class="balance-display">
+              <div class="balance-amount" id="wallet-balance">0.00000000<span class="balance-unit">KOT</span></div>
+              <div class="balance-addr" id="wallet-address" title="Click to copy">—</div>
+            </div>
+            <div class="action-row">
+              <button id="action-btn-6" class="btn btn-primary">Send</button>
+              <button id="action-btn-7" class="btn btn-secondary">Receive</button>
+            </div>
+          </div>
+
+          <!-- Send Panel -->
+          <div class="card hidden" id="send-panel">
+            <div class="card-header">
+              <span class="card-title">Send KOT</span>
+              <button id="action-btn-8" class="btn btn-sm btn-secondary">Cancel</button>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Recipient Address</label>
+              <input type="text" class="form-input" id="send-to" placeholder="KOT1...">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Amount (KOT)</label>
+              <input type="text" class="form-input" id="send-amount" placeholder="0.00000000">
+            </div>
+            <div class="fee-display">
+              <span>Estimated Fee</span>
+              <span class="fee-value" id="send-fee">—</span>
+            </div>
+            <button class="btn btn-primary btn-block" id="btn-send">Confirm Send</button>
+          </div>
+
+          <!-- Receive Panel -->
+          <div class="card hidden" id="receive-panel">
+            <div class="card-header">
+              <span class="card-title">Receive KOT</span>
+              <button id="action-btn-9" class="btn btn-sm btn-secondary">Close</button>
+            </div>
+            <div class="text-center">
+              <div class="form-label">Your Address</div>
+              <div class="balance-addr" id="receive-address" style="font-size:14px;padding:16px 0;">—</div>
+              <button id="action-btn-10" class="btn btn-secondary btn-sm">Copy Address</button>
+            </div>
+          </div>
+
+          <!-- Tx History -->
+          <div class="card mt-16">
+            <div class="card-header">
+              <span class="card-title">Transaction History</span>
+            </div>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Address</th>
+                  <th>Amount</th>
+                  <th>Fee</th>
+                  <th>Block</th>
+                </tr>
+              </thead>
+              <tbody id="tx-history">
+                <tr>
+                  <td colspan="5" style="text-align:center;color:var(--text-muted)">No transactions yet</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════ MINING TAB ═══════ -->
+      <div class="tab-content" id="tab-mining">
+        <div class="page-header">
+          <div class="page-title">Mining</div>
+          <div class="page-subtitle">PONC memory-hard proof-of-work</div>
+        </div>
+        <div class="page-body">
+          <div class="mining-status-banner">
+            <div>
+              <div class="mining-state inactive" id="mining-state">Idle</div>
+              <div style="font-size:11px;color:var(--text-muted)" id="mining-address">—</div>
+            </div>
+            <button class="btn btn-primary" id="btn-toggle-mining">Start Mining</button>
+          </div>
+
+          <div class="card">
+            <div class="card-title mb-16">Thread Control</div>
+            <div class="thread-control">
+              <input type="number" class="form-input" id="thread-input" min="1" max="8" value="2"
+                style="text-align:center;width:100%">
+            </div>
+            <div class="text-center mt-8">
+              <div style="font-size:11px;color:var(--text-muted)">threads (1-8 max)</div>
+            </div>
+          </div>
+
+          <div class="stat-grid">
+            <div class="stat-item">
+              <div class="stat-label">Your Hashrate</div>
+              <div class="stat-value accent" id="my-hashrate">0 H/s</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Blocks Found</div>
+              <div class="stat-value" id="my-blocks">0</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Total Earned</div>
+              <div class="stat-value" id="my-earnings">0 KOT</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Uptime</div>
+              <div class="stat-value" id="mining-uptime">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════ REFERRALS TAB ═══════ -->
+      <div class="tab-content" id="tab-referrals">
+        <div class="page-header">
+          <div class="page-title">Referrals</div>
+          <div class="page-subtitle">Single-hop protocol-level referral rewards</div>
+        </div>
+        <div class="page-body">
+          <div class="card">
+            <div class="card-title mb-16">Your Referral Link</div>
+            <div class="form-input" id="referral-link" style="cursor:pointer;word-break:break-all">—</div>
+            <div class="form-hint">Share this link. When they mine, you earn 5% bonus (protocol-minted).</div>
+          </div>
+
+          <div class="stat-grid">
+            <div class="stat-item">
+              <div class="stat-label">Referred Users</div>
+              <div class="stat-value" id="ref-total">0</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Active Miners</div>
+              <div class="stat-value accent" id="ref-active">0</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Inactive</div>
+              <div class="stat-value" id="ref-inactive">0</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Total Earned</div>
+              <div class="stat-value accent" id="ref-earned">0 KOT</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Referred Miners</span>
+            </div>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Address</th>
+                  <th>Status</th>
+                  <th>Blocks Mined</th>
+                  <th>Your Bonus</th>
+                </tr>
+              </thead>
+              <tbody id="referral-list">
+                <tr>
+                  <td colspan="4" style="text-align:center;color:var(--text-muted)">No referrals yet</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════ GOVERNANCE TAB ═══════ -->
+      <div class="tab-content" id="tab-governance">
+        <div class="page-header">
+          <div class="page-title">Governance</div>
+          <div class="page-subtitle">On-chain parameter tuning via miner voting</div>
+        </div>
+        <div class="page-body">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Your Voting Power</span>
+            </div>
+            <div class="stat-grid">
+              <div class="stat-item">
+                <div class="stat-label">Blocks Mined (12 mo)</div>
+                <div class="stat-value" id="gov-blocks">0</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-label">Weight</div>
+                <div class="stat-value accent" id="gov-weight">0</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-label">Governance Cap</div>
+                <div class="stat-value" id="gov-cap">10%</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Active Proposals</span>
+              <button id="action-btn-11" class="btn btn-sm btn-secondary">New Proposal</button>
+            </div>
+            <div id="proposals-list">
+              <div style="text-align:center;color:var(--text-muted);padding:20px">No active proposals</div>
+            </div>
+          </div>
+
+          <!-- New Proposal Form -->
+          <div class="card hidden" id="new-proposal-form">
+            <div class="card-header">
+              <span class="card-title">Create Proposal</span>
+              <button id="action-btn-12" class="btn btn-sm btn-secondary">Cancel</button>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Parameter</label>
+              <select class="form-input" id="proposal-param">
+                <option value="block_size">Block Size Ceiling</option>
+                <option value="scratchpad_size">PONC Scratchpad Size</option>
+                <option value="ponc_rounds">PONC Round Count</option>
+                <option value="governance_cap">Governance Cap</option>
+                <option value="mining_window">Active Mining Window</option>
+                <option value="custom">Custom Proposal</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Proposed Value</label>
+              <input type="text" class="form-input" id="proposal-value" placeholder="New value">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Rationale</label>
+              <textarea class="form-input" id="proposal-rationale" rows="3" placeholder="Why this change?"></textarea>
+            </div>
+            <button id="action-btn-13" class="btn btn-primary btn-block">Submit Proposal</button>
+          </div>
+
+          <div class="card mt-16">
+            <div class="card-header">
+              <span class="card-title">Current Parameters</span>
+            </div>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Parameter</th>
+                  <th>Value</th>
+                  <th>Range</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Block Size</td>
+                  <td class="mono" id="param-blocksize">50 KB</td>
+                  <td class="mono">50–500 KB</td>
+                </tr>
+                <tr>
+                  <td>PONC Rounds</td>
+                  <td class="mono" id="param-rounds">512</td>
+                  <td class="mono">256–2048</td>
+                </tr>
+                <tr>
+                  <td>Governance Cap</td>
+                  <td class="mono" id="param-govcap">10%</td>
+                  <td class="mono">5–20%</td>
+                </tr>
+                <tr>
+                  <td>Mining Window</td>
+                  <td class="mono" id="param-window">2880 blocks</td>
+                  <td class="mono">—</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════ SETTINGS TAB ═══════ -->
+      <div class="tab-content" id="tab-settings">
+        <div class="page-header">
+          <div class="page-title">Settings</div>
+          <div class="page-subtitle">Wallet backup and configuration</div>
+        </div>
+        <div class="page-body">
+          
+          <!-- Debug Panel -->
+          <div class="card">
+            <div class="card-title mb-16">Debug Information</div>
+            <button class="btn btn-secondary btn-block" id="btn-show-debug">Show Debug Info</button>
+            <div id="debug-panel" class="hidden" style="margin-top: 16px; background: #1a1d2e; padding: 16px; border-radius: 8px; font-family: monospace; font-size: 12px; max-height: 400px; overflow-y: auto;">
+              <div id="debug-output"></div>
+            </div>
+          </div>
+          
+          <div class="card">
+            <div class="card-title mb-16">Backup Mnemonic</div>
+            <div class="form-hint mb-16">Your 24-word recovery phrase. Store it offline and never share it.</div>
+            <div class="mnemonic-display hidden" id="settings-mnemonic">—</div>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button class="btn btn-secondary" style="flex:1" id="btn-reveal-mnemonic">Reveal Mnemonic</button>
+              <button class="btn btn-secondary hidden" style="flex:1" id="btn-copy-mnemonic">Copy</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title mb-16">Network</div>
+            <table class="data-table">
+              <tbody>
+                <tr>
+                  <td>Peer Count</td>
+                  <td class="mono" id="settings-peers">—</td>
+                </tr>
+                <tr>
+                  <td>Node Version</td>
+                  <td class="mono">v1.0.2</td>
+                </tr>
+                <tr>
+                  <td>Chain Height</td>
+                  <td class="mono" id="settings-height">—</td>
+                </tr>
+                <tr>
+                  <td>Data Directory</td>
+                  <td class="mono" style="word-break:break-all" id="settings-datadir">~/.knotcoin</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="danger-zone">
+            <div class="card">
+              <div class="card-title mb-16" style="color:var(--red)">Delete Wallet</div>
+              <button id="action-btn-delete-wallet" class="btn btn-danger btn-block">Delete Wallet Permanently</button>
+              <div class="form-hint mt-8">⚠️ This will permanently delete your wallet data from this device. Make sure you have backed up your 24-word mnemonic!</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- ═══════ EXPLORER TAB ═══════ -->
+      <div class="tab-content" id="tab-explorer">
+        <div class="page-header">
+          <div class="page-title">Block Explorer</div>
+          <div class="page-subtitle">Search and inspect the Knotcoin blockchain</div>
+        </div>
+        <div class="page-body">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Search Blockchain</span>
+            </div>
+            <div class="form-group" style="display: flex; gap: 10px;">
+              <input type="text" class="form-input" id="search-block-input" placeholder="Enter Block Height or Hash..."
+                style="flex: 1;">
+              <button class="btn btn-primary" id="btn-search-block">Search</button>
+            </div>
+          </div>
+
+          <div class="card mt-16">
+            <div class="card-header">
+              <span class="card-title">Recent Blocks (Paginated)</span>
+              <div style="display: flex; gap: 10px; align-items: center;">
+                <button class="btn btn-secondary btn-sm" id="btn-explorer-prev">← Prev</button>
+                <span id="explorer-page-info" style="font-size: 12px; color: var(--text-muted)">Page 1</span>
+                <button class="btn btn-secondary btn-sm" id="btn-explorer-next">Next →</button>
+              </div>
+            </div>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Height</th>
+                  <th>Hash</th>
+                  <th>Miner</th>
+                  <th>Txns</th>
+                  <th>Time</th>
+                </tr>
+              </thead>
+              <tbody id="explorer-blocks">
+                <tr>
+                  <td colspan="5" style="text-align:center;color:var(--text-muted)">Loading blocks...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════ BLOCK EXPLORER MODAL ═══════ -->
+      <div id="block-modal" class="modal">
+        <div class="modal-content card">
+          <div class="card-header">
+            <span class="card-title" id="modal-block-title">Block Details</span>
+            <button class="btn btn-sm btn-secondary" id="btn-close-modal">Close</button>
+          </div>
+          <div class="modal-body" id="modal-block-body"></div>
+        </div>
+      </div>
+
+      <!-- FOOTER -->
+      <footer class="app-footer">
+      </footer>
+    </div>
+  </div>
+
+  <script src="d3.v7.min.js"></script>
+  <script src="knotcoin_app.js"></script>
+</body>
+
+</html>

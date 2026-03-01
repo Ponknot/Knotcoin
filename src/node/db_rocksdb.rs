@@ -429,10 +429,22 @@ impl ChainDB {
         
         match self.db.get_cf(cf, KEY_GOV_PARAMS)? {
             Some(data) => {
-                if data.len() >= 16 {
+                if data.len() >= 24 {
+                    // New format: cap_bps + ponc_rounds + mining_threads (24 bytes)
                     let cap_bps = u64::from_le_bytes(data[0..8].try_into().unwrap());
                     let ponc_rounds = u64::from_le_bytes(data[8..16].try_into().unwrap());
-                    Ok(crate::consensus::state::GovernanceParams { cap_bps, ponc_rounds })
+                    let mining_threads = u64::from_le_bytes(data[16..24].try_into().unwrap());
+                    Ok(crate::consensus::state::GovernanceParams { cap_bps, ponc_rounds, mining_threads })
+                } else if data.len() >= 16 {
+                    // Legacy format: cap_bps + ponc_rounds (16 bytes)
+                    // Automatically upgrade to include default mining_threads
+                    let cap_bps = u64::from_le_bytes(data[0..8].try_into().unwrap());
+                    let ponc_rounds = u64::from_le_bytes(data[8..16].try_into().unwrap());
+                    Ok(crate::consensus::state::GovernanceParams { 
+                        cap_bps, 
+                        ponc_rounds, 
+                        mining_threads: crate::consensus::chain::MINING_THREADS_DEFAULT 
+                    })
                 } else {
                     Ok(crate::consensus::state::GovernanceParams::default())
                 }
@@ -448,9 +460,10 @@ impl ChainDB {
     ) -> Result<(), DbError> {
         let cf = self.cf(CF_META)?;
         
-        let mut buf = Vec::with_capacity(16);
+        let mut buf = Vec::with_capacity(24);
         buf.extend_from_slice(&params.cap_bps.to_le_bytes());
         buf.extend_from_slice(&params.ponc_rounds.to_le_bytes());
+        buf.extend_from_slice(&params.mining_threads.to_le_bytes());
         
         let mut write_opts = rocksdb::WriteOptions::default();
         write_opts.set_sync(true); // Critical metadata

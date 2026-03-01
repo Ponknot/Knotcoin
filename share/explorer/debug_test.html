@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Knotcoin Debug Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1d2e; color: #fff; }
+        .log { background: #2a2d3e; padding: 10px; margin: 5px 0; border-radius: 4px; }
+        .error { color: #ff6b6b; }
+        .success { color: #51cf66; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Knotcoin Debug Test</h1>
+    
+    <div>
+        <button onclick="testLocalStorage()">Test localStorage</button>
+        <button onclick="testDeleteWallet()">Test Delete Wallet Function</button>
+        <button onclick="clearStorage()">Clear localStorage</button>
+        <button onclick="checkElements()">Check Elements</button>
+    </div>
+    
+    <div id="output"></div>
+    
+    <script>
+        function log(msg, type = 'log') {
+            const div = document.createElement('div');
+            div.className = 'log ' + type;
+            div.textContent = new Date().toLocaleTimeString() + ' - ' + msg;
+            document.getElementById('output').appendChild(div);
+            console.log(msg);
+        }
+        
+        function testLocalStorage() {
+            log('Testing localStorage...');
+            const mnemonic = localStorage.getItem('knotcoin_mnemonic');
+            const address = localStorage.getItem('knotcoin_address');
+            
+            if (mnemonic) {
+                log('✅ Mnemonic found: ' + mnemonic.substring(0, 20) + '...', 'success');
+            } else {
+                log('❌ No mnemonic in localStorage', 'error');
+            }
+            
+            if (address) {
+                log('✅ Address found: ' + address, 'success');
+            } else {
+                log('❌ No address in localStorage', 'error');
+            }
+            
+            log('All localStorage keys: ' + Object.keys(localStorage).join(', '));
+        }
+        
+        function testDeleteWallet() {
+            log('Testing delete wallet function...');
+            
+            if (typeof deleteWallet === 'function') {
+                log('✅ deleteWallet function exists', 'success');
+                log('Calling deleteWallet()...');
+                try {
+                    deleteWallet();
+                } catch (e) {
+                    log('❌ Error calling deleteWallet: ' + e.message, 'error');
+                }
+            } else {
+                log('❌ deleteWallet function NOT found', 'error');
+                log('Available window functions: ' + Object.keys(window).filter(k => k.includes('delete') || k.includes('wallet')).join(', '));
+            }
+        }
+        
+        function clearStorage() {
+            log('Clearing localStorage...');
+            localStorage.clear();
+            log('✅ localStorage cleared', 'success');
+            testLocalStorage();
+        }
+        
+        function checkElements() {
+            log('Checking page elements...');
+            
+            const onboarding = document.getElementById('onboarding');
+            const app = document.getElementById('app');
+            const deleteBtn = document.getElementById('action-btn-delete-wallet');
+            
+            if (onboarding) {
+                log('✅ Onboarding element found, hidden: ' + onboarding.classList.contains('hidden'), 'success');
+            } else {
+                log('❌ Onboarding element NOT found', 'error');
+            }
+            
+            if (app) {
+                log('✅ App element found, hidden: ' + app.classList.contains('hidden'), 'success');
+            } else {
+                log('❌ App element NOT found', 'error');
+            }
+            
+            if (deleteBtn) {
+                log('✅ Delete wallet button found', 'success');
+                log('Button onclick: ' + (deleteBtn.onclick ? 'set' : 'not set'));
+            } else {
+                log('❌ Delete wallet button NOT found', 'error');
+            }
+        }
+        
+        // Auto-run on load
+        window.addEventListener('load', function() {
+            log('=== Page Loaded ===');
+            testLocalStorage();
+            checkElements();
+        });
+    </script>
+</body>
+</html>

@@ -68,9 +68,18 @@ impl Transaction {
             return false;
         }
 
-        // 2. Amount must be positive, UNLESS it is a governance signaling transaction
-        if self.amount == 0 && self.governance_data.is_none() {
-            return false;
+        // 2. Amount must be positive, UNLESS it is:
+        //    - a governance signaling transaction, OR
+        //    - a referral registration transaction (nonce==1, referrer set, self-recipient)
+        if self.amount == 0 {
+            let is_governance_signal = self.governance_data.is_some();
+            let is_referral_registration = self.nonce == 1
+                && self.referrer_address.is_some()
+                && self.recipient_address == self.sender_address;
+
+            if !is_governance_signal && !is_referral_registration {
+                return false;
+            }
         }
 
         // Catch arithmetic DoS attacks

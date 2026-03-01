@@ -44,7 +44,7 @@ fn banner() {
     println!();
     println!(
         "{}",
-        "                    v1.0.1 MAINNET                       "
+        "                    v1.0.2 MAINNET                       "
             .bright_green()
             .on_black()
             .bold()
@@ -65,24 +65,41 @@ fn banner() {
     println!();
 }
 
+/// Parse a CLI flag like `--rpc-port=9001` from args.
+fn parse_cli_flag(args: &[String], flag: &str) -> Option<String> {
+    for arg in args {
+        if let Some(val) = arg.strip_prefix(flag) {
+            if let Some(v) = val.strip_prefix('=') {
+                return Some(v.to_string());
+            }
+        }
+    }
+    None
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     banner();
 
+    let args: Vec<String> = std::env::args().collect();
     let mut config = NetworkConfig::mainnet();
 
-    // Allow environment overrides for multi-node testing
-    if let Ok(p) = std::env::var("KNOTCOIN_RPC_PORT")
-        && let Ok(port) = p.parse()
-    {
-        config.rpc_port = port;
+    // Priority: CLI args > env vars > defaults (from config.rs)
+    if let Some(p) = parse_cli_flag(&args, "--rpc-port") {
+        if let Ok(port) = p.parse() { config.rpc_port = port; }
+    } else if let Ok(p) = std::env::var("KNOTCOIN_RPC_PORT") {
+        if let Ok(port) = p.parse() { config.rpc_port = port; }
     }
-    if let Ok(p) = std::env::var("KNOTCOIN_P2P_PORT")
-        && let Ok(port) = p.parse()
-    {
-        config.p2p_port = port;
+
+    if let Some(p) = parse_cli_flag(&args, "--p2p-port") {
+        if let Ok(port) = p.parse() { config.p2p_port = port; }
+    } else if let Ok(p) = std::env::var("KNOTCOIN_P2P_PORT") {
+        if let Ok(port) = p.parse() { config.p2p_port = port; }
     }
-    if let Ok(d) = std::env::var("KNOTCOIN_DATA_DIR") {
+
+    if let Some(d) = parse_cli_flag(&args, "--data-dir") {
+        config.data_dir = d;
+    } else if let Ok(d) = std::env::var("KNOTCOIN_DATA_DIR") {
         config.data_dir = d;
     }
 
@@ -130,14 +147,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         shutdown: AtomicBool::new(false),
         p2p_tx,
         auth_token,
+        data_dir: config.data_dir.clone(),
+        mining_active: AtomicBool::new(false),
+        mining_blocks_found: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+        mining_start_time: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+        mining_stop: Arc::new(AtomicBool::new(false)),
+        connected_peers: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+        wallet_keys: Arc::new(Mutex::new(std::collections::HashMap::new())),
+        mining_nonces_total: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+        mining_address: Arc::new(Mutex::new(None)),
+        mining_referrer: Arc::new(Mutex::new(None)),
     });
 
     let p2p_state = state.clone();
     let p2p_port = config.p2p_port;
     tokio::spawn(async move {
         let node = P2PNode::new_from_rpc_state(p2p_state);
-        // Ensure mempool is shared between RPC and P2P
-        // node.mempool = p2p_state.mempool.clone(); // If needed
+
+        // Bootstrap in the background so unreachable seeds can't block the P2P event loop.
+        // This ensures `addnode` can always trigger dialing even when no bootstrap peers are reachable.
+        let bootstrap_node = node.clone();
+        tokio::spawn(async move {
+            println!("{} connecting to seed nodes...", "[p2p]".bright_green().bold());
+            bootstrap_node.connect_bootstrap().await;
+            println!("{} bootstrap complete", "[p2p]".bright_green().bold());
+        });
+
         if let Err(e) = node.start_on_port(p2p_port, p2p_rx).await {
             eprintln!("{} error: {e}", "[p2p]".bright_red().bold());
         }
@@ -158,7 +193,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!();
     println!(
         "{}",
-        "  Usage: knotcoin-cli <command> [args...]"
+        "  🌐 Web Interface: http://localhost:8080"
+            .bright_cyan()
+            .bold()
+    );
+    println!(
+        "{}",
+        "     (Wallet, Miner, Explorer - all in your browser)"
+            .bright_black()
+    );
+    println!();
+    println!(
+        "{}",
+        "  CLI Usage: knotcoin-cli <command> [args...]"
             .bright_yellow()
             .bold()
     );

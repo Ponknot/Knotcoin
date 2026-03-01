@@ -33,6 +33,7 @@ pub enum NetworkMessage {
     Challenge([u8; 32]),
     Response([u8; 32]),
     Addr(Vec<SocketAddr>),
+    GetAddr, // Request peers from connected node
     Tx(Vec<u8>), // raw transaction bytes
 }
 
@@ -50,6 +51,7 @@ enum MsgType {
     Challenge = 0x30,
     Response = 0x31,
     Addr = 0x40,
+    GetAddr = 0x41,
     Tx = 0x50,
 }
 
@@ -67,6 +69,7 @@ impl MsgType {
             0x30 => Some(Self::Challenge),
             0x31 => Some(Self::Response),
             0x40 => Some(Self::Addr),
+            0x41 => Some(Self::GetAddr),
             0x50 => Some(Self::Tx),
             _ => None,
         }
@@ -195,6 +198,9 @@ impl NetworkMessage {
                     }
                 }
             }
+            NetworkMessage::GetAddr => {
+                payload.push(MsgType::GetAddr as u8);
+            }
             NetworkMessage::Tx(raw) => {
                 payload.push(MsgType::Tx as u8);
                 payload.extend_from_slice(raw);
@@ -297,6 +303,9 @@ impl NetworkMessage {
                     } else { return None; }
                 }
                 Some(NetworkMessage::Addr(addrs))
+            }
+            MsgType::GetAddr => {
+                Some(NetworkMessage::GetAddr)
             }
             MsgType::Tx => {
                 Some(NetworkMessage::Tx(body.to_vec()))

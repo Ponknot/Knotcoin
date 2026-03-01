@@ -1,7 +1,11 @@
 // Mining loop: assemble template → initialize PONC scratchpad → iterate nonces.
 // A new engine is created per template so the scratchpad is always clean.
+//
+// FAIRNESS: Mining is hard-capped at 8 threads to prevent hardware arms race.
+// This ensures consumer hardware (4-8 cores) can compete with servers.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::consensus::chain::calculate_new_difficulty;
@@ -11,8 +15,7 @@ use crate::crypto::ponc::ffi::bridge::new_ponc_engine;
 use crate::net::mempool::Mempool;
 use crate::node::{ChainDB, db_common::{StoredBlock, StoredTransaction}};
 
-
-const MAX_TXS: usize = 6;
+pub const MAX_TXS: usize = 6;
 const RETARGET_INTERVAL: u64 = 60;
 
 // Use shared StoredBlock::header_bytes implementation for PoC/PoW consistency.
@@ -77,11 +80,40 @@ fn next_difficulty(db: &ChainDB, current_height: u32, current_target: [u8; 32]) 
 
 pub fn mine_block(
     db: &ChainDB,
-    mempool: &mut Mempool,
+    txs: Vec<StoredTransaction>,
     miner_addr: &[u8; 32],
     miner_sk: Option<&crate::crypto::dilithium::SecretKey>,
     stop: &AtomicBool,
     referrer: Option<[u8; 32]>,
+) -> Option<(StoredBlock, [u8; 32])> {
+    // Get thread count from governance params, hard-capped at 8
+    let params = db.get_governance_params().unwrap_or_default();
+    let num_threads = (params.mining_threads as usize).clamp(1, 8);
+    
+    mine_block_parallel(db, txs, miner_addr, miner_sk, stop, referrer, num_threads)
+}
+
+pub fn mine_block_parallel(
+    db: &ChainDB,
+    txs: Vec<StoredTransaction>,
+    miner_addr: &[u8; 32],
+    miner_sk: Option<&crate::crypto::dilithium::SecretKey>,
+    stop: &AtomicBool,
+    referrer: Option<[u8; 32]>,
+    num_threads: usize,
+) -> Option<(StoredBlock, [u8; 32])> {
+    mine_block_parallel_with_counter(db, txs, miner_addr, miner_sk, stop, referrer, num_threads, None)
+}
+
+pub fn mine_block_parallel_with_counter(
+    db: &ChainDB,
+    txs: Vec<StoredTransaction>,
+    miner_addr: &[u8; 32],
+    miner_sk: Option<&crate::crypto::dilithium::SecretKey>,
+    stop: &AtomicBool,
+    referrer: Option<[u8; 32]>,
+    num_threads: usize,
+    global_nonce_counter: Option<&AtomicU64>,
 ) -> Option<(StoredBlock, [u8; 32])> {
     let (prev_hash, height, base_target) = match db.get_tip().ok()? {
         Some(h) => {
@@ -94,48 +126,43 @@ pub fn mine_block(
 
     let difficulty_target = next_difficulty(db, height, base_target);
 
-    let now = SystemTime::now()
+    let mut now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs() as u32;
 
-    let mut txs = mempool.get_top_transactions(MAX_TXS);
-
-    // If this miner has no referrer yet and one is provided, prepend a
-    // zero-fee referral-binding transaction. This is a protocol-level
-    // record, not a user transaction, so it bypasses the fee floor.
-    if let Some(ref_addr) = referrer {
-        let miner_state = db.get_account(miner_addr).unwrap_or_default();
-        if miner_state.referrer.is_none() && miner_state.nonce == 0 {
-            let mut bind = StoredTransaction {
-                version: 1,
-                sender_address: *miner_addr,
-                sender_pubkey: vec![0; 1952], // Dilithium3 public key size
-                recipient_address: *miner_addr,
-                amount: 0,
-                fee: 0,
-                nonce: 1,
-                timestamp: now as u64,
-                referrer_address: Some(ref_addr),
-                governance_data: None,
-                signature: vec![0; crate::crypto::dilithium::DILITHIUM3_SIG_BYTES],
-            };
-            
-            // If we have the SK, sign it properly.
-            if let Some(sk) = miner_sk {
-                let domain_tx = crate::primitives::transaction::Transaction::try_from(&bind).ok();
-                if let Some(dtx) = domain_tx {
-                    let sig = crate::crypto::dilithium::sign(&dtx.signing_hash(), sk);
-                    bind.signature = sig.0.to_vec();
+    // Ensure timestamp is strictly greater than Median-Time-Past (MTP).
+    // Without this, rapid block generation (tests, fast networks) can produce
+    // blocks with the same timestamp that fail the MTP consensus check.
+    {
+        let mut times = Vec::new();
+        for i in 1..=11u32 {
+            if height >= i {
+                if let Ok(Some(h)) = db.get_block_hash_by_height(height - i) {
+                    if let Ok(Some(b)) = db.get_block(&h) {
+                        times.push(u32::from_le_bytes(b.timestamp));
+                    }
                 }
             }
-            txs.insert(0, bind);
-            txs.truncate(MAX_TXS);
+        }
+        if !times.is_empty() {
+            times.sort();
+            let mtp = times[times.len() / 2];
+            if now <= mtp {
+                now = mtp + 1;
+            }
         }
     }
 
+    // NOTE: Referral binding transactions are NOT auto-inserted by the miner.
+    // The miner does not currently have a reliable way to reconstruct the matching Dilithium public
+    // key from only a stored secret key (and the chain requires pubkey->address consistency).
+    // Referral registration must be performed explicitly via RPC `wallet_register_referral`
+    // as the wallet's first outgoing transaction.
+    let _ = (referrer, miner_sk);
+
     let root = merkle_root(&txs);
-    let mut template = StoredBlock {
+    let template = StoredBlock {
         version: [1, 0, 0, 0],
         previous_hash: prev_hash,
         merkle_root: root,
@@ -147,15 +174,93 @@ pub fn mine_block(
         tx_data: txs,
     };
 
+    // Parallel mining with thread cap
+    if num_threads <= 1 {
+        // Single-threaded path (for testing/debugging)
+        return mine_single_threaded(&template, &prev_hash, miner_addr, &difficulty_target, stop, db);
+    }
+
+    // Multi-threaded mining using std::thread::scope for safe borrowing of `stop` flag
+    let found = AtomicBool::new(false);
+    let result: Mutex<Option<(StoredBlock, [u8; 32])>> = Mutex::new(None);
+    let nonce_counter = AtomicU64::new(0);
+
+    std::thread::scope(|s| {
+        for _thread_id in 0..num_threads {
+            let template = &template;
+            let found = &found;
+            let result = &result;
+            let nonce_counter = &nonce_counter;
+            let db = db.clone();
+
+            s.spawn(move || {
+                let mut engine = new_ponc_engine();
+                let params = db.get_governance_params().unwrap_or_default();
+                engine.pin_mut().set_rounds(params.ponc_rounds as usize);
+                engine.pin_mut().initialize_scratchpad(&prev_hash, miner_addr);
+
+                loop {
+                    if found.load(Ordering::Relaxed) || stop.load(Ordering::Relaxed) {
+                        return;
+                    }
+
+                    let nonce = nonce_counter.fetch_add(1, Ordering::Relaxed);
+                    
+                    // Update global nonce counter for hashrate tracking
+                    if let Some(gc) = global_nonce_counter {
+                        gc.fetch_add(1, Ordering::Relaxed);
+                    }
+
+                    let mut prefix = Vec::with_capacity(140);
+                    prefix.extend_from_slice(&template.version);
+                    prefix.extend_from_slice(&template.previous_hash);
+                    prefix.extend_from_slice(&template.merkle_root);
+                    prefix.extend_from_slice(&template.timestamp);
+                    prefix.extend_from_slice(&template.difficulty_target);
+                    prefix.extend_from_slice(&template.block_height);
+                    prefix.extend_from_slice(&template.miner_address);
+
+                    let mut out = [0u8; 32];
+                    if engine.compute_and_verify(&prefix, nonce, &difficulty_target, &mut out) {
+                        found.store(true, Ordering::SeqCst);
+
+                        let mut block = template.clone();
+                        block.nonce = nonce.to_le_bytes();
+                        let hash = block_hash(&block);
+                        
+                        if let Ok(mut res) = result.lock() {
+                            *res = Some((block, hash));
+                        }
+                        return;
+                    }
+
+                    if nonce % 10_000 == 0 {
+                        std::thread::yield_now();
+                    }
+                }
+            });
+        }
+    });
+
+    result.into_inner().ok()?
+}
+
+// Single-threaded mining (original implementation, kept for compatibility)
+fn mine_single_threaded(
+    template: &StoredBlock,
+    prev_hash: &[u8; 32],
+    miner_addr: &[u8; 32],
+    difficulty_target: &[u8; 32],
+    stop: &AtomicBool,
+    db: &ChainDB,
+) -> Option<(StoredBlock, [u8; 32])> {
     let mut engine = new_ponc_engine();
     
     // Get current PONC rounds from governance params
     let params = db.get_governance_params().unwrap_or_default();
     engine.pin_mut().set_rounds(params.ponc_rounds as usize);
     
-    engine
-        .pin_mut()
-        .initialize_scratchpad(&prev_hash, miner_addr);
+    engine.pin_mut().initialize_scratchpad(prev_hash, miner_addr);
 
     let mut nonce: u64 = 0;
     loop {
@@ -163,20 +268,22 @@ pub fn mine_block(
             return None;
         }
 
-        template.nonce = nonce.to_le_bytes();
+        let mut block = template.clone();
+        block.nonce = nonce.to_le_bytes();
+        
         let mut prefix = Vec::with_capacity(140);
-        prefix.extend_from_slice(&template.version);
-        prefix.extend_from_slice(&template.previous_hash);
-        prefix.extend_from_slice(&template.merkle_root);
-        prefix.extend_from_slice(&template.timestamp);
-        prefix.extend_from_slice(&template.difficulty_target);
-        prefix.extend_from_slice(&template.block_height);
-        prefix.extend_from_slice(&template.miner_address);
+        prefix.extend_from_slice(&block.version);
+        prefix.extend_from_slice(&block.previous_hash);
+        prefix.extend_from_slice(&block.merkle_root);
+        prefix.extend_from_slice(&block.timestamp);
+        prefix.extend_from_slice(&block.difficulty_target);
+        prefix.extend_from_slice(&block.block_height);
+        prefix.extend_from_slice(&block.miner_address);
 
         let mut out = [0u8; 32];
-        if engine.compute_and_verify(&prefix, nonce, &difficulty_target, &mut out) {
-            let hash = block_hash(&template);
-            return Some((template, hash));
+        if engine.compute_and_verify(&prefix, nonce, difficulty_target, &mut out) {
+            let hash = block_hash(&block);
+            return Some((block, hash));
         }
 
         nonce = nonce.wrapping_add(1);
@@ -196,7 +303,8 @@ pub fn generate_blocks(
     let stop = AtomicBool::new(false);
     let mut hashes = Vec::new();
     for _ in 0..count {
-        if let Some((block, hash)) = mine_block(db, mempool, miner_addr, None, &stop, referrer)
+        let txs = mempool.get_top_transactions(MAX_TXS);
+        if let Some((block, hash)) = mine_block(db, txs, miner_addr, None, &stop, referrer)
             && apply_block(db, &block).is_ok()
         {
             hashes.push(hash);
@@ -229,7 +337,8 @@ mod tests {
 
         let stop = std::sync::atomic::AtomicBool::new(false);
         let miner = [0x55u8; 32];
-        let (block, _) = mine_block(&db, &mut pool, &miner, None, &stop, None).unwrap();
+        let txs = pool.get_top_transactions(MAX_TXS);
+        let (block, _) = mine_block(&db, txs, &miner, None, &stop, None).unwrap();
         assert_eq!(u32::from_le_bytes(block.block_height), 1);
 
         apply_block(&db, &block).expect("failed to apply mined block");

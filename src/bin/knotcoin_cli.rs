@@ -13,6 +13,19 @@ use knotcoin::crypto::dilithium::PublicKey;
 
 use colored::*;
 
+fn resolve_data_dir() -> String {
+    if let Ok(d) = std::env::var("KNOTCOIN_DATA_DIR") {
+        return d;
+    }
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    format!("{}/{}", home, knotcoin::config::DATA_DIR)
+}
+
+fn read_rpc_cookie() -> Option<String> {
+    let cookie_path = std::path::Path::new(&resolve_data_dir()).join(knotcoin::config::RPC_COOKIE_FILE);
+    std::fs::read_to_string(cookie_path).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+}
+
 fn print_usage() {
     println!(
         "{}",
@@ -220,8 +233,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let body = serde_json::to_string(&request_body)?;
+
+    let auth = read_rpc_cookie();
+    let auth_header = auth
+        .as_deref()
+        .map(|t| format!("Authorization: Bearer {}\r\n", t))
+        .unwrap_or_default();
     let http_request = format!(
-        "POST / HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        "POST /rpc HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\n{}Content-Length: {}\r\nConnection: close\r\n\r\n{}",
+        auth_header,
         body.len(),
         body,
     );

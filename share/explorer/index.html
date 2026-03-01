@@ -1,1342 +1,1681 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
+
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Knotcoin Explorer - Quantum-Resistant Blockchain</title>
-  <link rel="stylesheet" href="style.css?v=10.0">
-  <script src="https://d3js.org/d3.v7.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/js-sha3/0.9.3/sha3.min.js"></script>
-  <script src="app.js?v=25.0"></script>
+  <title>Knotcoin</title>
   <style>
-    /* Disable transitions for SVG elements to prevent lag */
-    svg, svg *, circle, line, text {
-      transition: none !important;
+    html,
+    body {
+      height: 100%
     }
-    
-    /* Smooth dragging */
-    circle {
-      cursor: grab;
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box
     }
-    
-    circle:active {
-      cursor: grabbing;
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      color: #1a1a1a
     }
-    
-    /* Active miner blinking animation */
-    @keyframes miner-pulse {
-      0%, 100% {
-        opacity: 1;
-        filter: drop-shadow(0 0 8px currentColor);
-      }
-      50% {
-        opacity: 0.6;
-        filter: drop-shadow(0 0 20px currentColor);
-      }
+
+    .app {
+      display: flex;
+      height: 100vh;
+      overflow: hidden
     }
-    
-    .viz-active-miner {
-      animation: miner-pulse 2s ease-in-out infinite;
+
+    .sidebar {
+      width: 190px;
+      background: #0d0d0d;
+      color: #bbb;
+      padding: 0;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      user-select: none
     }
-    
-    /* Override topline CSS to prevent box-in-box */
-    #topline {
-      display: flex !important;
-      gap: 15px !important;
-      flex-wrap: wrap !important;
-      align-items: center !important;
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 18px 16px;
+      border-bottom: 1px solid #1e1e1e
     }
-    
-    #topline span {
-      background: transparent !important;
-      border: none !important;
-      padding: 0 !important;
-      border-radius: 0 !important;
+
+    .logo-mark {
+      width: 32px;
+      height: 32px;
+      background: #4ade80;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 18px;
+      color: #000;
+      flex-shrink: 0;
+      letter-spacing: -1px;
+      box-shadow: 0 2px 8px rgba(74, 222, 128, 0.3)
+    }
+
+    .logo-text {
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 1.5px
+    }
+
+    .logo-text span {
+      color: #4ade80
+    }
+
+    .nav-item {
+      padding: 10px 16px;
+      font-size: 13px;
+      cursor: pointer;
+      border-left: 2px solid transparent;
+      color: #888;
+      transition: all 0.1s;
+      display: flex;
+      align-items: center;
+      gap: 8px
+    }
+
+    .nav-item:hover {
+      background: rgba(255, 255, 255, 0.03);
+      color: #ccc
+    }
+
+    .nav-item.active {
+      background: rgba(74, 222, 128, 0.06);
+      color: #fff;
+      border-left-color: #4ade80
+    }
+
+    .nav-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0.4
+    }
+
+    .nav-item.active .nav-dot {
+      opacity: 1;
+      background: #4ade80
+    }
+
+    .sidebar-status {
+      margin-top: auto;
+      padding: 10px 16px;
+      font-size: 10px;
+      color: #444;
+      border-top: 1px solid #1a1a1a;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #dc2626;
+      display: inline-block;
+      flex-shrink: 0
+    }
+
+    .dot.on {
+      background: #4ade80
+    }
+
+    .main {
+      flex: 1;
+      overflow: hidden;
+      background: #f5f5f5;
+      display: flex;
+      flex-direction: column
+    }
+
+    .screen {
+      display: none;
+      height: 100%
+    }
+
+    .screen.active {
+      display: flex;
+      flex-direction: column;
+      height: 100%
+    }
+
+    .page {
+      display: none;
+      flex: 1;
+      overflow-y: auto
+    }
+
+    .page.active {
+      display: flex;
+      flex-direction: column
+    }
+
+    .page-pad {
+      padding: 24px 32px;
+      flex: 1
+    }
+
+    .page.page-full.active {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden
+    }
+
+    .onboard-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      padding: 40px 20px
+    }
+
+    .onboard-box {
+      width: 100%;
+      max-width: 380px
+    }
+
+    .onboard-box h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #111
+    }
+
+    .onboard-box p {
+      color: #888;
+      font-size: 14px;
+      line-height: 1.5;
+      margin-bottom: 18px
+    }
+
+    h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 14px;
+      color: #111
+    }
+
+    .label {
+      font-size: 10px;
+      font-weight: 700;
+      color: #aaa;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 4px;
+      display: block
+    }
+
+    .btn {
+      padding: 9px 16px;
+      border: none;
+      border-radius: 5px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.1s
+    }
+
+    .btn:active {
+      opacity: 0.65
+    }
+
+    .btn:hover {
+      opacity: 0.85
+    }
+
+    .btn-p {
+      background: #111;
+      color: #fff
+    }
+
+    .btn-d {
+      background: #dc2626;
+      color: #fff
+    }
+
+    .btn-s {
+      background: #e8e8e8;
+      color: #444
+    }
+
+    .btn-g {
+      background: #16a34a;
+      color: #fff
+    }
+
+    .btn-full {
+      width: 100%;
+      padding: 10px;
+      margin: 4px 0;
+      display: block
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      padding: 8px 11px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 13px;
+      margin: 2px 0 10px;
+      background: #fff;
+      color: #111;
+      display: block
+    }
+
+    input:focus,
+    textarea:focus {
+      outline: none;
+      border-color: #555;
+      box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.06)
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid #e8e8e8;
+      border-radius: 7px;
+      padding: 16px 18px;
+      margin-bottom: 12px
+    }
+
+    .bal-big {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -1px;
+      color: #111
+    }
+
+    .bal-unit {
+      font-size: 13px;
+      color: #aaa;
+      margin-left: 4px
+    }
+
+    .mono {
+      font-family: 'SF Mono', Monaco, Consolas, monospace;
+      font-size: 11px;
+      word-break: break-all;
+      color: #777;
+      line-height: 1.5
+    }
+
+    .grid3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 12px
+    }
+
+    .grid4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 12px
+    }
+
+    .stat-card {
+      background: #fff;
+      border: 1px solid #e8e8e8;
+      border-radius: 7px;
+      padding: 14px 12px;
+      text-align: center
+    }
+
+    .stat-card .val {
+      font-size: 18px;
+      font-weight: 700;
+      color: #111
+    }
+
+    .stat-card .lbl {
+      font-size: 10px;
+      color: #aaa;
+      margin-top: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px
+    }
+
+    .m-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #dc2626;
+      display: inline-block;
+      flex-shrink: 0
+    }
+
+    .m-dot.on {
+      background: #16a34a
+    }
+
+    .mnemonic-box {
+      background: #fffbeb;
+      border: 1px solid #fcd34d;
+      padding: 12px;
+      border-radius: 5px;
+      font-family: monospace;
+      font-size: 12px;
+      line-height: 1.9;
+      margin: 8px 0;
+      word-break: break-word
+    }
+
+    .tx-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 0;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: 13px
+    }
+
+    .tx-row:last-child {
+      border-bottom: none
+    }
+
+    .tx-type {
+      font-weight: 600;
+      min-width: 62px
+    }
+
+    .tx-sent .tx-type {
+      color: #dc2626
+    }
+
+    .tx-recv .tx-type {
+      color: #16a34a
+    }
+
+    .tx-mine .tx-type {
+      color: #2563eb
+    }
+
+    .blk-row {
+      display: flex;
+      gap: 8px;
+      padding: 5px 0;
+      border-bottom: 1px solid #f5f5f5;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 11px;
+      color: #666;
+      align-items: center
+    }
+
+    .blk-row:last-child {
+      border-bottom: none
+    }
+
+    .blk-h {
+      color: #111;
+      font-weight: 600;
+      min-width: 38px
+    }
+
+    .blk-ts {
+      color: #aaa;
+      min-width: 70px
+    }
+
+    .blk-tx {
+      color: #888;
+      min-width: 40px
+    }
+
+    .blk-miner {
+      color: #555;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap
+    }
+
+    /* Network map */
+    .net-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      padding: 0
+    }
+
+    .net-header {
+      padding: 16px 24px 8px;
+      flex-shrink: 0
+    }
+
+    .net-legend {
+      display: flex;
+      gap: 16px;
+      padding: 0 24px 10px;
+      font-size: 11px;
+      color: #888;
+      flex-wrap: wrap;
+      flex-shrink: 0
+    }
+
+    .net-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px
+    }
+
+    .net-canvas-wrap {
+      flex: 1;
+      position: relative;
+      margin: 0 24px 24px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #e8e8e8;
+      background: #fff
+    }
+
+    #bubbleCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: crosshair
+    }
+
+    .net-tooltip {
+      position: fixed;
+      background: #0a0a0a;
+      color: #e5e5e5;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 12px;
+      pointer-events: none;
+      z-index: 9999;
+      display: none;
+      line-height: 1.6;
+      min-width: 200px;
+      max-width: 320px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      border: 1px solid #2a2a2a;
+      backdrop-filter: blur(8px)
+    }
+
+    .net-tooltip b {
+      color: #4ade80;
+      font-weight: 600
+    }
+
+    .net-tooltip .tt-addr {
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 9px;
+      color: #666;
+      display: block;
+      margin-top: 4px;
+      word-break: break-all;
+      background: #1a1a1a;
+      padding: 6px 8px;
+      border-radius: 4px;
+      margin-bottom: 8px
+    }
+
+    .net-tooltip .tt-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 3px 0;
+      border-bottom: 1px solid #222
+    }
+
+    .net-tooltip .tt-row:last-child {
+      border-bottom: none
+    }
+
+    .net-tooltip .tt-label {
+      color: #888;
+      font-size: 11px
+    }
+
+    .net-tooltip .tt-value {
+      color: #fff;
+      font-weight: 500
+    }
+
+    .net-status-bar {
+      padding: 6px 24px 8px;
+      font-size: 11px;
+      color: #aaa;
+      flex-shrink: 0;
+      display: flex;
+      justify-content: space-between
+    }
+
+    .link {
+      color: #2563eb;
+      cursor: pointer;
+      font-size: 13px
+    }
+
+    .link:hover {
+      text-decoration: underline
+    }
+
+    .hidden {
+      display: none !important
     }
   </style>
 </head>
+
 <body>
-  <div id="app">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-      <div style="display: flex; align-items: baseline; gap: 12px;">
-        <pre id="logo" style="margin: 0; font-size: 20px; font-weight: 800;">KNOTCOIN</pre>
-        <span style="font-size: 11px; color: var(--accent); font-weight: 600;">World's First PoW + Referral Blockchain (PoNC)</span>
+  <div class="app">
+    <!-- SIDEBAR (hidden during onboarding) -->
+    <div class="sidebar" id="sidebar" style="display:none">
+      <div class="logo">
+        <div class="logo-mark">K</div>
+        <div class="logo-text">KNOT<span>COIN</span></div>
       </div>
-      <div style="display: flex; gap: 8px;">
-        <input id="search-input" type="text" placeholder="height / hash / address" style="width: 280px; padding: 8px; background: var(--panel); color: var(--text); border: 2px solid var(--line); font-family: inherit; font-size: 13px; border-radius: 6px;">
-        <button id="search-btn" style="padding: 8px 16px; background: var(--accent); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">SEARCH</button>
+      <div class="nav-item active" data-page="dashboard"><span class="nav-dot"></span>Dashboard</div>
+      <div class="nav-item" data-page="send"><span class="nav-dot"></span>Send</div>
+      <div class="nav-item" data-page="receive"><span class="nav-dot"></span>Receive</div>
+      <div class="nav-item" data-page="mining"><span class="nav-dot"></span>Mining</div>
+      <div class="nav-item" data-page="referrals"><span class="nav-dot"></span>Referrals</div>
+      <div class="nav-item" data-page="governance"><span class="nav-dot"></span>Governance</div>
+      <div class="nav-item" data-page="network"><span class="nav-dot"></span>Network</div>
+      <div class="nav-item" data-page="settings"><span class="nav-dot"></span>Settings</div>
+      <div class="sidebar-status"><span class="dot" id="dot"></span><span id="status">Connecting...</span></div>
+    </div>
+    <div class="main">
+
+      <!-- ONBOARD: Welcome -->
+      <div id="s0" class="screen active">
+        <div class="onboard-wrap">
+          <div class="onboard-box">
+            <h1>Knotcoin</h1>
+            <p>Quantum-secure electronic cash with referral mining.</p>
+            <label class="label" for="ref">Referral Code (optional)</label>
+            <input type="text" id="ref" placeholder="Paste referral link or code">
+            <p style="font-size:12px;color:#aaa;margin:-6px 0 18px">If someone referred you, enter their code. You can
+              skip this.</p>
+            <button class="btn btn-p btn-full" id="b0">Create New Wallet</button>
+            <button class="btn btn-s btn-full" id="b1">Import Existing Wallet</button>
+          </div>
+        </div>
       </div>
-    </div>
 
-    <div id="topline" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; background: var(--panel); padding: 10px 12px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px;">
-      <span id="conn-status" class="status good">ONLINE</span>
-      <span style="color: var(--text);">HEIGHT: <span id="demo-height" style="font-weight: 700;">0</span></span>
-      <span style="color: var(--text);">HASHRATE: <span id="demo-hashrate" style="font-weight: 700;">0 H/s</span></span>
-      <span style="color: var(--text);">DIFF: <span id="demo-diff" style="font-weight: 700;">--</span></span>
-      <span style="color: var(--text);">REWARD: <span id="demo-reward" style="font-weight: 700;">--</span></span>
-      <span style="color: var(--text);">SUPPLY: <span id="demo-supply" style="font-weight: 700;">0.00</span> KOT</span>
-      <span style="color: var(--text);">MEMPOOL: <span style="font-weight: 700;">0</span></span>
-      <span id="demo-clock" style="color: var(--text); font-weight: bold; margin-left: auto; font-size: 11px;">--</span>
-      <button id="theme-toggle" title="Toggle Day/Night Mode" style="font-size: 14px;">☼</button>
-    </div>
-
-    <div id="toolbar" style="margin-bottom: 12px;">
-      <button class="nav-btn active" data-page="home">HOME</button>
-      <button class="nav-btn" data-page="blocks">BLOCKS</button>
-      <button class="nav-btn" data-page="network">NETWORK</button>
-      <button class="nav-btn" data-page="mine">MINER</button>
-      <button class="nav-btn" data-page="wallet">WALLET</button>
-      <button class="nav-btn" data-page="referral">REFERRAL</button>
-      <button class="nav-btn" data-page="governance">GOVERNANCE</button>
-      <button class="nav-btn" data-page="l2">L2</button>
-      <a href="whitepaper.html" target="_blank" class="nav-link-btn">WHITEPAPER</a>
-    </div>
-
-    <main style="margin-bottom: 12px;">
-      <section id="page-home" class="page active">
-        <h2 style="margin: 0 0 10px 0; font-size: 15px;">[ HOME ] NETWORK CONFIDENCE MAP</h2>
-        
-        <div id="network-viz-container" style="width: 100%; height: 480px; background: var(--bg); border: 2px solid var(--accent); border-radius: 8px; position: relative; overflow: hidden;">
-          <svg id="network-viz-canvas" style="width: 100%; height: 100%;"></svg>
-          
-          <div id="network-viz-stats" style="position: absolute; top: 15px; left: 15px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px; font-size: 9px; max-width: 230px; box-shadow: var(--shadow);">
-            <div style="font-weight: 800; color: var(--accent); margin-bottom: 6px; text-transform: uppercase; font-size: 10px;">Network Status</div>
-            <div style="display: grid; grid-template-columns: auto 1fr; gap: 3px 8px; font-size: 9px;">
-              <span style="color: var(--dim);">HEIGHT:</span><span style="color: var(--text); font-weight: 700;" id="stat-height">0</span>
-              <span style="color: var(--dim);">MINERS:</span><span style="color: var(--ok); font-weight: 700;" id="stat-miners">0</span>
-              <span style="color: var(--dim);">HASHRATE:</span><span style="color: var(--ok); font-weight: 700;" id="stat-hashrate">0 H/s</span>
-              <span style="color: var(--dim);">REWARD:</span><span style="color: var(--accent); font-weight: 700;" id="stat-reward">--</span>
-              <span style="color: var(--dim);">REFERRALS:</span><span style="color: var(--warn); font-weight: 700;" id="stat-referrals">0</span>
+      <!-- ONBOARD: Show mnemonic -->
+      <div id="s1" class="screen">
+        <div class="onboard-wrap">
+          <div class="onboard-box">
+            <h1>Save Your Mnemonic</h1>
+            <p>Write down these 24 words. This is your only backup.</p>
+            <div class="mnemonic-box" id="newm">Generating...</div>
+            <p style="font-size:12px;color:#dc2626;margin-bottom:12px">Never share this. Store it offline.</p>
+            <div style="background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:12px;margin-bottom:16px">
+              <p style="font-size:11px;color:#fbbf24;margin:0 0 6px;font-weight:600">⚠️ Important: Backup Your Keys File
+              </p>
+              <p style="font-size:11px;color:#aaa;margin:0">Knotcoin uses quantum-resistant Dilithium3 keys which cannot
+                be regenerated from mnemonic alone. After creating your wallet, also backup:<br><code
+                  style="background:#333;padding:2px 6px;border-radius:3px;font-size:10px">~/.knotcoin/mainnet/wallet_keys.json</code>
+              </p>
             </div>
-          </div>
-          
-          <div id="demo-legend" style="position: absolute; bottom: 15px; right: 15px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px; font-size: 9px;">
-            <div style="font-weight: 800; color: var(--accent); margin-bottom: 6px; text-transform: uppercase; font-size: 10px;">Legend</div>
-            <div style="display: flex; align-items: center; gap: 6px; margin: 3px 0;">
-              <div style="width: 10px; height: 10px; border-radius: 50%; background: #22c55e;"></div>
-              <span>Very Active</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 6px; margin: 3px 0;">
-              <div style="width: 10px; height: 10px; border-radius: 50%; background: #eab308;"></div>
-              <span>Active</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 6px; margin: 3px 0;">
-              <div style="width: 10px; height: 10px; border-radius: 50%; background: #f97316;"></div>
-              <span>Eligible</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 6px; margin: 3px 0;">
-              <div style="width: 10px; height: 10px; border-radius: 50%; background: #71717a;"></div>
-              <span>Inactive</span>
-            </div>
-            <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); font-size: 8px; color: var(--dim);">
-              Size = referrals | Click for details
-            </div>
-          </div>
-          
-          <div id="network-viz-info" style="position: absolute; top: 15px; right: 15px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 0; font-size: 11px; width: 280px; box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: opacity 0.3s;">
+            <button class="btn btn-p btn-full" id="b2">I Saved My Mnemonic — Continue</button>
+            <button class="btn btn-s btn-full" id="b3">Back</button>
           </div>
         </div>
-      </section>
+      </div>
 
-      <section id="page-blocks" class="page">
-        <h2 style="margin: 0 0 10px 0; font-size: 15px;">[ BLOCK EXPLORER ]</h2>
-        <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
-          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
-            <div>
-              <div style="font-size: 10px; color: var(--dim);">LATEST BLOCK</div>
-              <div style="font-size: 20px; font-weight: 800; color: var(--accent);" id="block-latest">0</div>
-            </div>
-            <div>
-              <div style="font-size: 10px; color: var(--dim);">AVG BLOCK TIME</div>
-              <div style="font-size: 20px; font-weight: 800; color: var(--ok);" id="block-avgtime">--</div>
-            </div>
-            <div>
-              <div style="font-size: 10px; color: var(--dim);">TOTAL TX</div>
-              <div style="font-size: 20px; font-weight: 800; color: var(--text);" id="block-totaltx">0</div>
-            </div>
-            <div>
-              <div style="font-size: 10px; color: var(--dim);">CHAIN SIZE</div>
-              <div style="font-size: 20px; font-weight: 800; color: var(--warn);" id="block-size">0 MB</div>
-            </div>
+      <!-- ONBOARD: Import -->
+      <div id="s2" class="screen">
+        <div class="onboard-wrap">
+          <div class="onboard-box">
+            <h1>Import Wallet</h1>
+            <p>Enter your 24-word mnemonic phrase.</p>
+            <textarea id="impm" rows="4" placeholder="word1 word2 word3 ..."></textarea>
+            <button class="btn btn-p btn-full" id="b4">Import</button>
+            <button class="btn btn-s btn-full" id="b5">Back</button>
           </div>
         </div>
-        
-        <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <div style="font-size: 12px; font-weight: 700; color: var(--accent);" id="blocks-page-label">RECENT BLOCKS</div>
-            <div style="display: flex; gap: 8px;">
-              <button id="blocks-prev" class="nav-btn" style="padding: 4px 12px; font-size: 10px;">◀ PREV</button>
-              <button id="blocks-next" class="nav-btn" style="padding: 4px 12px; font-size: 10px;">NEXT ▶</button>
-            </div>
-          </div>
-          <div style="overflow-x: auto;">
-            <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
-              <thead>
-                <tr style="border-bottom: 1px solid var(--line);">
-                  <th style="text-align: left; padding: 8px; color: var(--dim);">HEIGHT</th>
-                  <th style="text-align: left; padding: 8px; color: var(--dim);">HASH</th>
-                  <th style="text-align: left; padding: 8px; color: var(--dim);">TIME</th>
-                  <th style="text-align: left; padding: 8px; color: var(--dim);">TX</th>
-                  <th style="text-align: left; padding: 8px; color: var(--dim);">MINER</th>
-                  <th style="text-align: left; padding: 8px; color: var(--dim);">ACTION</th>
-                </tr>
-              </thead>
-              <tbody id="blocks-tbody">
-                <tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--dim);">Loading blocks...</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
+      </div>
 
-      <section id="page-network" class="page">
-        <h2 style="margin: 0 0 10px 0; font-size: 15px;">[ NETWORK STATUS ]</h2>
-        <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; font-family: monospace; font-size: 11px; line-height: 1.8;">
-<div style="color: var(--accent); font-weight: 800; margin-bottom: 8px;">NETWORK / CONSENSUS</div>
-<div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 12px;">
-<span style="color: var(--dim);">protocol</span><span id="net-protocol">1</span>
-<span style="color: var(--dim);">network</span><span id="net-name">Knotcoin Mainnet</span>
-<span style="color: var(--dim);">chain_height</span><span id="net-height">0</span>
-<span style="color: var(--dim);">active_miners</span><span id="net-miners">0</span>
-<span style="color: var(--dim);">avg_block_interval</span><span id="net-interval">-- sec</span>
-<span style="color: var(--dim);">current_reward</span><span id="net-reward">-- KOT</span>
-<span style="color: var(--dim);">difficulty</span><span id="net-diff">--</span>
-<span style="color: var(--dim);">estimated_global_hash</span><span id="net-hash">0 H/s</span>
-<span style="color: var(--dim);">hashing</span><span>SHA3-256</span>
-<span style="color: var(--dim);">signatures</span><span>Dilithium3 (NIST FIPS 204)</span>
-<span style="color: var(--dim);">referral_bonus</span><span>5% protocol minted</span>
-<span style="color: var(--dim);">retarget_window</span><span>60 blocks</span>
-<span style="color: var(--dim);">total_referrals</span><span id="net-refs">0</span>
-<span style="color: var(--dim);">governance_proposals</span><span id="net-props">0</span>
-</div>
-        </div>
-      </section>
+      <!-- MAIN WALLET VIEW -->
+      <div id="s3" class="screen">
 
-      <section id="page-mine" class="page">
-        <h2 style="margin: 0 0 10px 0; font-size: 15px;">[ MINER ]</h2>
-        
-        <div id="miner-login-prompt">
-          <div style="background: var(--panel); border: 1px solid var(--accent); border-radius: 6px; padding: 20px; text-align: center;">
-            <div style="font-size: 14px; font-weight: 700; color: var(--accent); margin-bottom: 10px;">🔒 WALLET REQUIRED</div>
-            <div style="font-size: 11px; line-height: 1.6; color: var(--text); margin-bottom: 15px;">
-              Mining rewards are sent to your wallet address. Please generate or import a wallet before starting to mine.
+        <!-- Dashboard -->
+        <div id="pg-dashboard" class="page active">
+          <div class="page-pad">
+            <h2>Dashboard</h2>
+            <div class="card">
+              <div class="label">Balance</div>
+              <div><span class="bal-big" id="bal">0.00000000</span><span class="bal-unit">KOT</span></div>
+              <div class="mono" style="margin-top:8px;cursor:pointer" id="addr" title="Click to copy">Loading...</div>
             </div>
-            <button class="nav-btn active" data-page="wallet" style="padding: 8px 20px;">GO TO WALLET</button>
-          </div>
-        </div>
-        
-        <div id="miner-auth-only" class="hidden">
-          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
-            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">NETWORK STATUS</div>
-            <div style="font-size: 11px; line-height: 1.6; color: var(--text);">
-              <div style="margin-bottom: 6px;">• Current Reward: <span id="mine-reward" style="color: var(--ok); font-weight: 700;">-- KOT</span></div>
-              <div style="margin-bottom: 6px;">• Network Hashrate: <span id="mine-hashrate" style="color: var(--accent); font-weight: 700;">0 H/s</span></div>
-              <div>• Difficulty: <span id="mine-diff" style="color: var(--warn); font-weight: 700;">--</span></div>
+            <div class="grid4">
+              <div class="stat-card">
+                <div class="val" id="h">0</div>
+                <div class="lbl">Block Height</div>
+              </div>
+              <div class="stat-card">
+                <div class="val" id="p">0</div>
+                <div class="lbl">Peers</div>
+              </div>
+              <div class="stat-card">
+                <div class="val" id="m">0</div>
+                <div class="lbl">Mempool</div>
+              </div>
+              <div class="stat-card">
+                <div class="val" id="dashbal">0</div>
+                <div class="lbl">KOT Balance</div>
+              </div>
             </div>
-          </div>
-          
-          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
-            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">MINING CONTROLS</div>
-            <div style="margin-bottom: 10px;">
-              <label style="font-size: 10px; color: var(--dim); display: block; margin-bottom: 4px;">MINER ADDRESS</label>
-              <input id="mine-addr" type="text" placeholder="Your wallet address (auto-filled)" style="width: 100%; font-family: var(--font-mono); font-size: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 8px;" readonly />
-            </div>
-            <div style="margin-bottom: 10px;">
-              <label style="font-size: 10px; color: var(--dim); display: block; margin-bottom: 4px;">BLOCKS TO MINE</label>
-              <input id="mine-count" type="number" value="1" min="1" max="500" style="width: 100%; font-family: var(--font-mono); font-size: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 8px;" />
-            </div>
-            <button id="mine-btn" class="nav-btn active" style="width: 100%; padding: 10px; font-size: 12px; font-weight: 700;">START MINING</button>
-            <div id="mine-result" style="font-size: 10px; color: var(--accent); margin-top: 8px; text-align: center;"></div>
-          </div>
-          
-          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
-            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">MINING STATS</div>
-            <pre id="mine-stats" style="font-size: 10px; line-height: 1.6; color: var(--text); background: var(--bg); padding: 10px; border-radius: 4px; overflow-x: auto; margin: 0;">Waiting for mining session...</pre>
-          </div>
-          
-          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
-            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">MINED BLOCKS (THIS SESSION)</div>
-            <pre id="mine-hash-feed" style="font-size: 9px; line-height: 1.6; color: var(--dim); background: var(--bg); padding: 10px; border-radius: 4px; overflow-x: auto; max-height: 200px; overflow-y: auto; margin: 0;">No blocks mined in this session.</pre>
-          </div>
-        </div>
-      </section>
-
-      <section id="page-wallet" class="page">
-        <h2 style="margin: 0 0 10px 0; font-size: 15px;">[ WALLET ]</h2>
-        
-        <div id="wallet-auth-view">
-          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
-            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">GENERATE NEW WALLET</div>
-            <div style="font-size: 10px; line-height: 1.6; color: var(--dim); margin-bottom: 10px;">
-              Create a new quantum-resistant wallet with BIP-39 24-word mnemonic. Your private keys never leave this browser.
-            </div>
-            <input id="wallet-referrer-input" type="text" placeholder="Optional: Referral code (knotcoin://...)" style="width: 100%; margin-bottom: 10px; font-family: var(--font-mono); font-size: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 8px;" />
-            <button id="wallet-generate-btn" class="nav-btn active" style="width: 100%; padding: 8px;">GENERATE NEW WALLET</button>
-            
-            <div id="mnemonic-creation-zone" class="hidden" style="margin-top: 12px; background: var(--bg); border: 1px dashed var(--accent); border-radius: 4px; padding: 12px;">
-              <div style="font-size: 11px; font-weight: 700; color: var(--bad); margin-bottom: 8px;">⚠️ SAVE THESE WORDS SECURELY</div>
-              <pre id="generated-mnemonic-text" style="font-size: 10px; line-height: 1.8; color: var(--text); background: var(--panel); padding: 10px; border-radius: 4px; word-wrap: break-word; white-space: pre-wrap;"></pre>
-              <div style="display: flex; gap: 8px; margin-top: 10px;">
-                <button id="wallet-copy-mnemonic-btn" class="nav-btn" style="flex: 1; padding: 6px; font-size: 10px;">COPY</button>
-                <button id="wallet-confirm-mnemonic-btn" class="nav-btn active" style="flex: 1; padding: 6px; font-size: 10px;">I SAVED IT, CONTINUE</button>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div class="card">
+                <div class="label">Recent Transactions</div>
+                <div id="txhist" style="font-size:13px;color:#888">No transactions yet</div>
+              </div>
+              <div class="card">
+                <div class="label">Latest Blocks</div>
+                <div id="blocks" style="max-height:200px;overflow-y:auto">Loading...</div>
               </div>
             </div>
           </div>
-          
-          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
-            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">IMPORT EXISTING WALLET</div>
-            <div style="font-size: 10px; line-height: 1.6; color: var(--dim); margin-bottom: 10px;">
-              Enter your 24-word mnemonic or 128-character hex seed to restore your wallet.
-            </div>
-            <textarea id="wallet-import-input" placeholder="Enter 24-word mnemonic or hex seed..." style="width: 100%; height: 80px; font-family: var(--font-mono); font-size: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 8px; resize: vertical;"></textarea>
-            <button id="wallet-import-btn" class="nav-btn active" style="width: 100%; margin-top: 10px; padding: 8px;">IMPORT WALLET</button>
-          </div>
         </div>
-        
-        <div id="wallet-dashboard" class="hidden">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-            <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
-              <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">BALANCE</div>
-              <div id="wallet-balance" style="font-size: 20px; font-weight: 800; color: var(--ok);">0.00000000 KOT</div>
-            </div>
-            <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
-              <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">NONCE</div>
-              <div id="wallet-nonce" style="font-size: 20px; font-weight: 800; color: var(--text);">0</div>
-            </div>
-          </div>
-          
-          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
-            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">YOUR ADDRESS</div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <pre id="wallet-address" style="flex: 1; font-size: 10px; color: var(--text); background: var(--bg); padding: 8px; border-radius: 4px; margin: 0; word-wrap: break-word;">Not logged in</pre>
-              <button id="wallet-copy-addr" class="nav-btn" style="padding: 6px 10px; font-size: 10px;">COPY</button>
-            </div>
-          </div>
-          
-          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
-            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">WALLET INFO</div>
-            <pre id="wallet-panel" style="font-size: 10px; line-height: 1.6; color: var(--text); background: var(--bg); padding: 10px; border-radius: 4px; overflow-x: auto; margin: 0;">Not logged in.</pre>
-          </div>
-          
-          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
-            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">SEND KOT</div>
-            <div style="font-size: 10px; color: var(--dim); margin-bottom: 10px;">
-              Transaction signing requires Dilithium3 WASM (coming soon). Use knotcoin-cli for now.
-            </div>
-            <input id="send-recipient" type="text" placeholder="Recipient address (KOT1...)" style="width: 100%; margin-bottom: 8px; font-family: var(--font-mono); font-size: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 8px;" disabled />
-            <input id="send-amount" type="number" placeholder="Amount (KOT)" step="0.00000001" style="width: 100%; margin-bottom: 8px; font-family: var(--font-mono); font-size: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 8px;" disabled />
-            <button id="send-btn" class="nav-btn" style="width: 100%; padding: 8px; opacity: 0.5;" disabled>SEND (COMING SOON)</button>
-          </div>
-          
-          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
-            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">TRANSACTION HISTORY</div>
-            <div id="wallet-tx-history" style="font-size: 10px; line-height: 1.6; color: var(--text); max-height: 300px; overflow-y: auto;">
-              <div style="text-align: center; color: var(--dim); padding: 20px;">Loading transactions...</div>
-            </div>
-          </div>
-          
-          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
-            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">ADVANCED</div>
-            <button id="wallet-toggle-seed-btn" class="nav-btn" style="width: 100%; padding: 6px; font-size: 10px; margin-bottom: 8px;">SHOW MASTER SEED (HEX)</button>
-            <div id="wallet-seed-display-zone" class="hidden">
-              <pre id="wallet-seed-display" style="font-size: 9px; color: var(--dim); background: var(--bg); padding: 8px; border-radius: 4px; word-wrap: break-word; white-space: pre-wrap; margin: 0 0 8px 0;">--</pre>
-              <button id="wallet-copy-seed-btn" class="nav-btn" style="width: 100%; padding: 6px; font-size: 10px;">COPY SEED</button>
-            </div>
-          </div>
-          
-          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
-            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--bad);">DANGER ZONE</div>
-            <div style="font-size: 10px; line-height: 1.6; color: var(--dim); margin-bottom: 10px;">
-              Logging out will clear your wallet from this browser. Make sure you have saved your mnemonic.
-            </div>
-            <button id="wallet-logout-btn" class="nav-btn" style="width: 100%; padding: 8px; background: var(--bad); border-color: var(--bad);">LOGOUT WALLET</button>
-          </div>
-          
-          <pre id="wallet-privkey" style="display: none;"></pre>
-        </div>
-      </section>
 
-      <section id="page-referral" class="page">
-        <h2 style="margin: 0 0 10px 0; font-size: 15px;">[ REFERRAL SYSTEM ]</h2>
-        
-        <div id="referral-login-prompt">
-          <div style="background: var(--panel); border: 1px solid var(--accent); border-radius: 6px; padding: 20px; text-align: center;">
-            <div style="font-size: 14px; font-weight: 700; color: var(--accent); margin-bottom: 10px;">🔒 WALLET REQUIRED</div>
-            <div style="font-size: 11px; line-height: 1.6; color: var(--text); margin-bottom: 15px;">
-              Referral data is tied to your wallet address. Please generate or import a wallet to view your referral information.
+        <!-- Send -->
+        <div id="pg-send" class="page">
+          <div class="page-pad">
+            <h2>Send KOT</h2>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+              <div class="card">
+                <div class="label">Recipient Address</div>
+                <input type="text" id="sendto" placeholder="Paste destination address">
+                <div class="label">Amount (KOT)</div>
+                <input type="number" id="sendamt" placeholder="0.00000000" step="0.00000001">
+                <button class="btn btn-p btn-full" id="b6">Send KOT</button>
+                <div id="sendres" class="hidden"
+                  style="margin-top:10px;padding:10px;background:#f5f5f5;border-radius:5px;font-size:13px"></div>
+              </div>
+              <div class="card">
+                <div class="label">Your Balance</div>
+                <div style="font-size:24px;font-weight:700;margin:4px 0 2px" id="sendbalpre">0</div>
+                <div style="font-size:12px;color:#aaa">KOT available</div>
+              </div>
             </div>
-            <button class="nav-btn active" data-page="wallet" style="padding: 8px 20px;">GO TO WALLET</button>
           </div>
         </div>
-        
-        <div id="referral-auth-only" class="hidden">
-          <div style="background: var(--panel); border: 1px solid var(--accent); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
-            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">YOUR REFERRAL CODE</div>
-            <div style="font-size: 10px; color: var(--dim); margin-bottom: 8px;">
-              Share this code with new miners. When they generate a wallet with your code, you earn 5% bonus on their blocks.
-            </div>
-            <div style="display: flex; gap: 8px; align-items: center;">
-              <pre id="ref-privacy-code" style="flex: 1; font-size: 12px; font-weight: 700; color: var(--accent); background: var(--bg); padding: 10px; border-radius: 4px; margin: 0; text-align: center;">Loading...</pre>
-              <button id="ref-copy-code-btn" class="nav-btn active" style="padding: 8px 12px; font-size: 10px;">COPY</button>
-            </div>
-            <div style="margin-top: 8px;">
-              <input id="ref-link-output" type="text" readonly style="width: 100%; font-family: var(--font-mono); font-size: 9px; background: var(--bg); color: var(--dim); border: 1px solid var(--line); border-radius: 4px; padding: 6px;" />
-            </div>
-            <button id="ref-generate-btn" class="nav-btn" style="width: 100%; margin-top: 8px; padding: 6px; font-size: 10px;">GENERATE REFERRAL LINK</button>
-          </div>
-          
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-            <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
-              <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">YOUR REFERRALS</div>
-              <div style="font-size: 24px; font-weight: 800; color: var(--accent);" id="ref-your-total">0</div>
-            </div>
-            <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
-              <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">YOUR BONUS EARNED</div>
-              <div style="font-size: 24px; font-weight: 800; color: var(--ok);" id="ref-your-bonus">0.00 KOT</div>
-            </div>
-          </div>
-          
-          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
-            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">YOUR REFERRAL STATUS</div>
-            <pre id="referral-panel" style="font-size: 10px; line-height: 1.6; color: var(--text); background: var(--bg); padding: 10px; border-radius: 4px; overflow-x: auto; margin: 0;">Loading...</pre>
-          </div>
-          
-          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
-            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">MINERS YOU REFERRED</div>
-            <div id="ref-your-miners" style="font-size: 10px; max-height: 200px; overflow-y: auto;">
-              <div style="text-align: center; color: var(--dim); padding: 20px;">Loading...</div>
-            </div>
-          </div>
-          
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-            <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
-              <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">NETWORK TOTAL</div>
-              <div style="font-size: 20px; font-weight: 800; color: var(--text);" id="ref-total">0</div>
-            </div>
-            <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
-              <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">NETWORK BONUS</div>
-              <div style="font-size: 20px; font-weight: 800; color: var(--text);" id="ref-bonus">0.00 KOT</div>
-            </div>
-          </div>
-          
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-            <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
-              <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">AVG REFERRALS</div>
-              <div style="font-size: 20px; font-weight: 800; color: var(--text);" id="ref-avg">0.0</div>
-            </div>
-            <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
-              <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">MAX DEPTH</div>
-              <div style="font-size: 20px; font-weight: 800; color: var(--text);" id="ref-depth">0</div>
-            </div>
-          </div>
-          
-          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
-            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">REFERRAL DISTRIBUTION</div>
-            <canvas id="ref-chart" style="width: 100%; height: 180px;"></canvas>
-          </div>
-          
-          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
-            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">TOP REFERRERS</div>
-            <div id="ref-leaderboard" style="font-size: 11px;"></div>
-          </div>
-        </div>
-      </section>
 
-      <section id="page-governance" class="page">
-        <h2 style="margin: 0 0 10px 0; font-size: 15px;">[ GOVERNANCE ]</h2>
-        
-        <div id="governance-login-prompt">
-          <div style="background: var(--panel); border: 1px solid var(--accent); border-radius: 6px; padding: 20px; text-align: center;">
-            <div style="font-size: 14px; font-weight: 700; color: var(--accent); margin-bottom: 10px;">🔒 WALLET REQUIRED</div>
-            <div style="font-size: 11px; line-height: 1.6; color: var(--text); margin-bottom: 15px;">
-              Governance voting requires wallet authentication. Your voting power is based on blocks mined. Please generate or import a wallet to participate.
+        <!-- Receive -->
+        <div id="pg-receive" class="page">
+          <div class="page-pad">
+            <h2>Receive KOT</h2>
+            <div class="card">
+              <div class="label">Your Address</div>
+              <div class="mono" id="recaddr" style="padding:10px 0;cursor:pointer;font-size:12px" title="Click to copy">
+                Loading...</div>
+              <button class="btn btn-s btn-full" id="b7">Copy Address</button>
+              <p style="font-size:12px;color:#aaa;margin-top:8px">Share this address to receive KOT.</p>
             </div>
-            <button class="nav-btn active" data-page="wallet" style="padding: 8px 20px;">GO TO WALLET</button>
           </div>
         </div>
-        
-        <div id="governance-auth-only" class="hidden">
-          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-            <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
-              <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">ACTIVE PROPOSALS</div>
-              <div style="font-size: 24px; font-weight: 800; color: var(--accent);" id="gov-active">0</div>
-            </div>
-            <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
-              <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">TOTAL VOTES CAST</div>
-              <div style="font-size: 24px; font-weight: 800; color: var(--ok);" id="gov-votes">0</div>
-            </div>
-            <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
-              <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">PARTICIPATION</div>
-              <div style="font-size: 24px; font-weight: 800; color: var(--text);" id="gov-participation">0%</div>
-            </div>
-          </div>
-          
-          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
-            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">VOTING POWER DISTRIBUTION</div>
-            <canvas id="gov-chart" style="width: 100%; height: 180px;"></canvas>
-          </div>
-          
-          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
-            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">PROPOSALS</div>
-            <div id="gov-proposals" style="font-size: 11px;"></div>
-          </div>
-        </div>
-      </section>
 
-      <section id="page-l2" class="page">
-        <h2 style="margin: 0 0 10px 0; font-size: 15px;">[ L2 STATE CHANNELS ]</h2>
-        
-        <div style="background: var(--accent); border: 1px solid var(--accent); border-radius: 6px; padding: 12px; margin-bottom: 12px; text-align: center;">
-          <div style="font-size: 14px; font-weight: 700; color: var(--bg);">🚀 COMING IN PHASE 2</div>
-          <div style="font-size: 10px; color: var(--bg); margin-top: 4px;">Layer 2 state channels will be activated after mainnet stabilization</div>
-        </div>
-        
-        <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
-          <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">PHASE 2 ROADMAP</div>
-          <div style="font-size: 11px; line-height: 1.6; color: var(--text);">
-            Layer 1 is a settlement layer (6 tx/min). Daily payments happen on Layer 2 state channels.
-            Only channel open/close touch the blockchain. Everything in between is instant and free.
-          </div>
-        </div>
-        
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
-            <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">OPEN CHANNELS</div>
-            <div style="font-size: 24px; font-weight: 800; color: var(--accent);" id="l2-open">0</div>
-          </div>
-          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
-            <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">TOTAL LOCKED</div>
-            <div style="font-size: 24px; font-weight: 800; color: var(--ok);" id="l2-locked">0 KOT</div>
-          </div>
-          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
-            <div style="font-size: 11px; color: var(--dim); margin-bottom: 4px;">OFF-CHAIN TX</div>
-            <div style="font-size: 24px; font-weight: 800; color: var(--text);" id="l2-txcount">0</div>
-          </div>
-        </div>
-        
-        <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
-          <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">CHANNEL LIFECYCLE</div>
-          <div style="font-family: monospace; font-size: 10px; line-height: 1.8; color: var(--text); background: var(--bg); padding: 10px; border-radius: 4px; overflow-x: auto;">
-Alice: 100 KOT                    Bob: 50 KOT
-   |                                 |
-   +---- Open Channel (L1) ----------+
-   |     Lock: Alice 100, Bob 50     |
-   |                                 |
-   +-- Payment: Alice → Bob 10 ------+  (instant)
-   +-- Payment: Bob → Alice 5 -------+  (instant)
-   +-- Payment: Alice → Bob 20 ------+  (instant)
-   |     ... hundreds more ...       |
-   |                                 |
-   +---- Close Channel (L1) ---------+
-   |     Final: Alice 75, Bob 75     |
-   |                                 |
-Alice: 75 KOT                     Bob: 75 KOT
-          </div>
-          <div style="font-size: 10px; color: var(--dim); margin-top: 8px;">
-            Only open and close touch blockchain. Off-chain payments are instant, free, and unlimited.
-          </div>
-        </div>
-        
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
-            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">SECURITY</div>
-            <div style="font-size: 10px; line-height: 1.6; color: var(--text);">
-              <div style="margin-bottom: 6px;">• Dispute window: 288 blocks (~4.8 hours)</div>
-              <div style="margin-bottom: 6px;">• Priority tx for disputes (1 slot/block)</div>
-              <div style="margin-bottom: 6px;">• Higher sequence number wins</div>
-              <div style="margin-bottom: 6px;">• Max channel lifetime prevents lock-up</div>
-              <div>• Dilithium3 signatures on all states</div>
+        <!-- Mining -->
+        <div id="pg-mining" class="page">
+          <div class="page-pad">
+            <h2>Mining</h2>
+            <div class="grid4" style="margin-bottom:14px">
+              <div class="stat-card">
+                <div class="val" id="mhr">0 H/s</div>
+                <div class="lbl">Hashrate</div>
+              </div>
+              <div class="stat-card">
+                <div class="val" id="mbf">0</div>
+                <div class="lbl">Blocks Found</div>
+              </div>
+              <div class="stat-card">
+                <div class="val" id="mdiff">--</div>
+                <div class="lbl">Difficulty</div>
+              </div>
+              <div class="stat-card">
+                <div class="val" id="mut">--</div>
+                <div class="lbl">Uptime</div>
+              </div>
             </div>
-          </div>
-          
-          <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
-            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">FEATURES</div>
-            <div style="font-size: 10px; line-height: 1.6; color: var(--text);">
-              <div style="margin-bottom: 6px;">✓ Bilateral payment channels</div>
-              <div style="margin-bottom: 6px;">✓ Instant settlement (milliseconds)</div>
-              <div style="margin-bottom: 6px;">✓ Zero fees for off-chain tx</div>
-              <div style="margin-bottom: 6px;">⏳ HTLC routing (future)</div>
-              <div>⏳ Multi-hop network (research)</div>
+            <div class="card" style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+              <div class="m-dot" id="mdot"></div>
+              <div style="flex:1"><span style="font-weight:600" id="mtext">Stopped</span>
+                <div style="font-size:11px;color:#aaa;margin-top:2px" id="maddr"></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="label">Mining Threads (1-8, capped for fairness)</div>
+              <input type="number" id="mthreads" min="1" max="8" value="4" style="width:80px">
+              <p style="font-size:11px;color:#888;margin-top:4px">Higher threads = more hashrate, but capped at 8 to
+                keep mining fair for consumer hardware.</p>
+            </div>
+            <button class="btn btn-p btn-full" id="b8">Start Mining</button>
+            <div class="card" style="margin-top:12px">
+              <div class="label">Mining Log</div>
+              <div id="mlog"
+                style="font-family:monospace;font-size:10px;max-height:150px;overflow-y:auto;background:#1a1a1a;color:#4ade80;padding:8px;border-radius:4px">
+                Waiting to start mining...</div>
             </div>
           </div>
         </div>
-        
-        <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px;">
-          <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--accent);">ACTIVE CHANNELS</div>
-          <div id="l2-channels" style="font-size: 11px;"></div>
+
+        <!-- Referrals -->
+        <div id="pg-referrals" class="page">
+          <div class="page-pad">
+            <h2>Referrals</h2>
+            <div class="card">
+              <div class="label">Your Referral Status</div>
+              <div id="refstatus" style="display:flex;align-items:center;gap:8px;padding:8px 0">
+                <span id="refstatdot" style="width:10px;height:10px;border-radius:50%;background:#666"></span>
+                <span id="refstattext" style="font-size:13px;color:#888">Checking...</span>
+              </div>
+            </div>
+            <div class="card">
+              <div class="label">Your Referral Link</div>
+              <div class="mono" id="rlink" style="padding:8px 0;cursor:pointer;font-size:12px"
+                title="Click to copy — share to earn 5%">--</div>
+              <p style="font-size:12px;color:#aaa;margin-top:4px">Earn 5% of every block reward mined by your referrals.
+              </p>
+            </div>
+            <div class="grid3">
+              <div class="stat-card">
+                <div class="val" id="rc">0</div>
+                <div class="lbl">Referred Miners</div>
+              </div>
+              <div class="stat-card" style="grid-column:span 2">
+                <div class="val" id="re">0.00000000</div>
+                <div class="lbl">Total Earned (KOT)</div>
+              </div>
+            </div>
+            <div class="card" style="margin-top:12px;background:#1a1a1a;border-color:#333">
+              <div class="label" style="color:#fbbf24">Referral Bonus Requirements</div>
+              <ul style="font-size:11px;color:#aaa;margin:8px 0 0 16px;line-height:1.8">
+                <li><b style="color:#fff">You must mine at least 1 block</b> to become a valid referrer</li>
+                <li><b style="color:#fff">Stay active</b> — mine within the last 2,880 blocks (~48 hours)</li>
+                <li><b style="color:#fff">5% bonus</b> is protocol-minted when your referrals mine (not deducted from
+                  them)</li>
+                <li>Referred users must register your code via their first transaction</li>
+              </ul>
+            </div>
+          </div>
         </div>
-      </section>
-    </main>
 
-    <footer style="margin-top: 12px; padding: 10px; font-size: 11px;">
-      Knotcoin Mainnet v1.0.0 | Quantum-Resistant Blockchain
-    </footer>
-  </div>
+        <!-- Governance -->
+        <div id="pg-governance" class="page">
+          <div class="page-pad">
+            <h2>Governance</h2>
+            <div class="grid4" style="margin-bottom:14px">
+              <div class="stat-card">
+                <div class="val" id="gw">--</div>
+                <div class="lbl">Weight (bps)</div>
+              </div>
+              <div class="stat-card">
+                <div class="val" id="gwp">--</div>
+                <div class="lbl">Weight %</div>
+              </div>
+              <div class="stat-card">
+                <div class="val" id="gcap">--</div>
+                <div class="lbl">Cap (bps)</div>
+              </div>
+              <div class="stat-card">
+                <div class="val" id="gstat">--</div>
+                <div class="lbl">Status</div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+              <div class="card">
+                <div class="label">Signal Vote</div>
+                <input type="text" id="ghex" placeholder="Proposal hash (64 hex chars)">
+                <button class="btn btn-p btn-full" id="bgovsend">Send Signal</button>
+                <div id="govsendres" class="hidden"
+                  style="margin-top:8px;padding:10px;background:#f5f5f5;border-radius:5px;font-size:13px"></div>
+              </div>
+              <div class="card">
+                <div class="label">Check Tally</div>
+                <input type="text" id="gtally" placeholder="Proposal hash (64 hex chars)">
+                <button class="btn btn-s btn-full" id="bgovtally">Get Tally</button>
+                <div id="govtallyres" class="hidden"
+                  style="margin-top:8px;padding:10px;background:#f5f5f5;border-radius:5px;font-size:13px"></div>
+              </div>
+            </div>
+          </div>
+        </div>
 
+        <!-- Network -->
+        <div id="pg-network" class="page page-full">
+          <div class="net-wrap">
+            <div class="net-header">
+              <h2 style="margin-bottom:8px">Network Explorer</h2>
+              <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:10px">
+                <div class="stat-card">
+                  <div class="val" id="net-miners">--</div>
+                  <div class="lbl">Total Miners</div>
+                </div>
+                <div class="stat-card">
+                  <div class="val" id="net-active">--</div>
+                  <div class="lbl">Active Now</div>
+                </div>
+                <div class="stat-card">
+                  <div class="val" id="net-addrs">--</div>
+                  <div class="lbl">Addresses</div>
+                </div>
+                <div class="stat-card">
+                  <div class="val" id="net-hashrate">--</div>
+                  <div class="lbl">Network H/s</div>
+                </div>
+                <div class="stat-card">
+                  <div class="val" id="net-height">--</div>
+                  <div class="lbl">Block Height</div>
+                </div>
+              </div>
+            </div>
+            <div class="net-legend">
+              <div class="net-legend-item"><span
+                  style="width:9px;height:9px;border-radius:50%;background:#16a34a;display:inline-block"></span> Mining
+              </div>
+              <div class="net-legend-item"><span
+                  style="width:9px;height:9px;border-radius:50%;background:#1a1a1a;display:inline-block"></span>
+                Inactive</div>
+              <div class="net-legend-item"><span
+                  style="width:9px;height:9px;border-radius:50%;background:#2563eb;display:inline-block"></span> You
+              </div>
+              <div class="net-legend-item"><span
+                  style="width:18px;height:1px;background:#4ade80;display:inline-block"></span> Referral link</div>
+              <div class="net-legend-item"><span
+                  style="width:18px;height:1px;background:#fbbf24;display:inline-block;border-top:1px dashed #fbbf24"></span>
+                Recent TX</div>
+            </div>
+            <div class="net-canvas-wrap"><canvas id="bubbleCanvas"></canvas></div>
+            <div class="net-status-bar"><span id="binfo">Loading...</span><span id="btime"></span></div>
+            <div style="padding:0 24px 16px;display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+              <div class="card" style="flex:1;min-width:280px;margin:0">
+                <div class="label">Block Search</div>
+                <div style="display:flex;gap:8px">
+                  <input type="number" id="blk-search" placeholder="Enter block height" min="1" style="flex:1;margin:0">
+                  <button class="btn btn-p" id="btn-blk-search">Search</button>
+                </div>
+                <div id="blk-result" class="hidden"
+                  style="margin-top:12px;font-size:12px;line-height:1.8;background:#fafafa;padding:12px;border-radius:6px;position:relative">
+                  <button id="blk-close"
+                    style="position:absolute;top:8px;right:8px;background:none;border:none;font-size:18px;cursor:pointer;color:#888">&times;</button>
+                  <div style="font-weight:600;margin-bottom:8px;font-size:14px">Block #<span id="blk-h">--</span></div>
+                  <div class="mono"
+                    style="font-size:9px;word-break:break-all;color:#666;margin-bottom:10px;background:#f0f0f0;padding:6px;border-radius:4px"
+                    id="blk-hash">--</div>
+                  <div style="display:grid;grid-template-columns:100px 1fr;gap:6px">
+                    <div><b>Miner:</b></div>
+                    <div class="mono" style="font-size:9px;word-break:break-all" id="blk-miner">--</div>
+                    <div><b>Reward:</b></div>
+                    <div><span id="blk-reward">--</span> KOT</div>
+                    <div><b>Difficulty:</b></div>
+                    <div id="blk-diff">--</div>
+                    <div><b>Time:</b></div>
+                    <div id="blk-time">--</div>
+                    <div><b>Transactions:</b></div>
+                    <div id="blk-txs">--</div>
+                  </div>
+                  <div style="margin-top:8px;font-size:10px;color:#888"><b>Prev:</b> <span id="blk-prev"
+                      class="mono">--</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Settings -->
+        <div id="pg-settings" class="page">
+          <div class="page-pad">
+            <h2>Settings</h2>
+            <div class="card">
+              <div class="label">Backup Mnemonic</div>
+              <button class="btn btn-s btn-full" id="b9">Reveal Mnemonic</button>
+              <div class="mnemonic-box hidden" id="mrev">--</div>
+              <div
+                style="margin-top:12px;padding:10px;background:#fef3c7;border-radius:6px;font-size:11px;color:#92400e">
+                <b>⚠️ Post-Quantum Wallet Notice:</b> Dilithium3 keys cannot be regenerated from mnemonic alone. Your
+                keys are stored in <code>~/.knotcoin/mainnet/wallet_keys.json</code>. <b>Backup this file along with
+                  your mnemonic!</b> If you delete the wallet and re-import the mnemonic, you will get a NEW address.
+              </div>
+            </div>
+            <div class="card" style="border-color:#fecaca">
+              <div class="label" style="color:#dc2626">Danger Zone</div>
+              <p style="font-size:12px;color:#888;margin-bottom:8px">Permanently delete wallet from this device. <b>This
+                  will delete your keys!</b> Backup wallet_keys.json first.</p>
+              <button class="btn btn-d btn-full" id="b10">Delete Wallet</button>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- end s3 -->
+    </div><!-- end main -->
+  </div><!-- end app -->
+  <div id="nettooltip" class="net-tooltip"></div>
   <script>
-    const RPC_URL = 'http://localhost:8080/rpc';
-    
-    function escapeHtml(unsafe) {
-      if (unsafe === null || unsafe === undefined) return '';
-      return String(unsafe)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-    }
-    
-    let blockchainState = {
-      height: 0,
-      miners: [],
-      currentTime: Date.now(),
-      lastUpdate: 0
-    };
+    const RPC_BASE = (typeof window !== 'undefined' && window.__KNOTCOIN_RPC__) ? window.__KNOTCOIN_RPC__ : 'http://127.0.0.1:9001';
+    const RPC = RPC_BASE.endsWith('/rpc') ? RPC_BASE : (RPC_BASE + '/rpc');
+    const K = 100000000;
+    let auth = '', w = { m: null, a: null, b: 0 }, c = { h: 0, p: 0, mp: 0 }, mi = { act: false, threads: 4 }, r = { c: '', n: 0, e: 0 }, netStats = { miners: 0, active: 0, addrs: 0, netHashrate: 0 };
+    let timer = null, temp = null, lastBlocksHeight = -1, syncRunning = false;
+    const $ = id => document.getElementById(id);
 
-    // Fetch real blockchain data
-    async function rpcCall(method, params = []) {
+    function formatUptime(s) {
+      if (s < 60) return s + 's';
+      if (s < 3600) return Math.floor(s / 60) + 'm ' + s % 60 + 's';
+      return Math.floor(s / 3600) + 'h ' + Math.floor((s % 3600) / 60) + 'm';
+    }
+
+    function normalizeRefInput(v) {
+      v = (v || '').trim();
+      if (!v) return '';
+      try { if (v.includes('ref=')) { const u = new URL(v); const r = u.searchParams.get('ref'); if (r) v = r; } }
+      catch (e) { const m = v.match(/ref=([0-9a-fA-F]{16})/); if (m) v = m[1]; }
+      v = v.trim();
+      if (v.toLowerCase().startsWith('kot')) v = v.replace(/^kot1?/i, '');
+      return v;
+    }
+
+    async function rpc(m, p = [], timeoutMs = 8000) {
+      const h = { 'Content-Type': 'application/json' };
+      if (auth) h['Authorization'] = 'Bearer ' + auth;
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), timeoutMs);
       try {
-        const response = await fetch(RPC_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: Date.now(),
-            method,
-            params
-          })
-        });
-        const data = await response.json();
-        return data.result || null;
-      } catch (error) {
-        console.error('RPC Error:', error);
-        return null;
-      }
-    }
-
-    async function fetchBlockchainData() {
-      const miningInfo = await rpcCall('getmininginfo');
-      if (miningInfo) {
-        blockchainState.height = miningInfo.blocks || 0;
-        document.getElementById('demo-height').textContent = blockchainState.height;
-        document.getElementById('demo-supply').textContent = supplyAt(blockchainState.height).toFixed(2);
-        document.getElementById('demo-hashrate').textContent = formatHashrate(miningInfo.networkhashps || 0);
-        
-        // Calculate difficulty from target hex
-        if (miningInfo.difficulty) {
-          const diff = calculateDifficulty(miningInfo.difficulty);
-          document.getElementById('demo-diff').textContent = diff;
+        const res = await fetch(RPC, { method: 'POST', headers: h, body: JSON.stringify({ jsonrpc: '2.0', method: m, params: p, id: Date.now() }), signal: ctrl.signal });
+        if (!res.ok) {
+          let emsg = res.statusText;
+          try { const ed = await res.json(); if (ed.error) emsg = ed.error.message || JSON.stringify(ed.error); } catch (_) { }
+          throw new Error(emsg);
         }
-        
-        // Calculate reward for current height
-        const reward = calculateReward(blockchainState.height);
-        document.getElementById('demo-reward').textContent = reward + ' KOT';
-      }
-      
-      const minersData = await rpcCall('get_all_miners');
-      if (minersData) {
-        const miners = minersData.miners || minersData;
-        if (Array.isArray(miners)) {
-          blockchainState.miners = miners;
-          updateVisualization();
-        }
-      }
-    }
-
-    function calculateDifficulty(targetHex) {
-      try {
-        // Max target (difficulty 1)
-        const maxTarget = BigInt('0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
-        const currentTarget = BigInt('0x' + targetHex);
-        
-        if (currentTarget <= 0n) return 'MAX';
-        
-        const difficulty = Number(maxTarget) / Number(currentTarget);
-        return difficulty.toFixed(4);
+        const d = await res.json();
+        if (d.error) throw new Error(d.error.message || JSON.stringify(d.error));
+        return d.result;
       } catch (e) {
-        return '1.0000';
-      }
+        throw e;
+      } finally { clearTimeout(tid); }
     }
 
-    function calculateReward(height) {
-      // Phase 1: blocks 0-262800, linear increase from 0.1 to 1.0
-      if (height <= 262800) {
-        const baseReward = 0.1 + (0.9 * height / 262800);
-        return baseReward.toFixed(2);
-      }
-      // Phase 2: blocks 262801-525600, constant 1.0
-      if (height <= 525600) {
-        return '1.00';
-      }
-      // Phase 3: logarithmic decay
-      const blocksAfterPhase2 = height - 525600;
-      const reward = 1.0 / Math.log2(blocksAfterPhase2 / 2 + 2);
-      return reward.toFixed(2);
+    async function maybeRegisterReferral() {
+      try {
+        if (!w.m || !w.a) return;
+        const rfRaw = localStorage.getItem('knotcoin_referrer') || '';
+        const rf = normalizeRefInput(rfRaw);
+        if (!rf) return;
+        const bal = await rpc('getbalance', [w.a]);
+        if ((bal.nonce || 0) !== 0) return;
+        if ((bal.balance_knots || 0) < 1) return;
+        const info = await rpc('getreferralinfo', [w.a]);
+        if (info && info.referred_by) return;
+        await rpc('wallet_register_referral', [w.m, rfRaw]);
+      } catch (e) { }
     }
 
-    function formatHashrate(hashrate) {
-      if (!hashrate || hashrate <= 0) return '0 H/s';
-      if (hashrate < 1000) return hashrate.toFixed(1) + ' H/s';
-      if (hashrate < 1000000) return (hashrate / 1000).toFixed(1) + ' kH/s';
-      if (hashrate < 1000000000) return (hashrate / 1000000).toFixed(1) + ' MH/s';
-      return (hashrate / 1000000000).toFixed(1) + ' GH/s';
+    // ── Interactive Network Map ─────────────────────────────────────────
+    let netNodes = [], netHover = -1, netAnimFrame = null, netData = null, netTxAnims = [], netLastFetch = 0, netTooltipSetup = false;
+
+    async function fetchNetData() {
+      try {
+        const [dr, tr] = await Promise.allSettled([
+          rpc('get_all_miners', [], 12000),
+          w.a ? rpc('gettransactionhistory', [w.a, 5]) : Promise.resolve({ transactions: [] })
+        ]);
+        if (dr.status === 'fulfilled') {
+          netData = dr.value;
+          const miners = netData.miners || [];
+          netStats.miners = miners.length;
+          netStats.active = miners.filter(m => m.is_mining).length;
+          netStats.addrs = miners.filter(m => m.blocks_mined > 0 || m.balance_knots > 0).length;
+          set('net-miners', el => el.textContent = netStats.miners);
+          set('net-active', el => el.textContent = netStats.active);
+          set('net-addrs', el => el.textContent = netStats.addrs);
+          set('net-height', el => el.textContent = c.h || '--');
+        }
+        if (tr.status === 'fulfilled' && netNodes.length) {
+          const idx = {}; netNodes.forEach(n => idx[n.addr] = n);
+          (tr.value.transactions || []).filter(t => t.type === 'sent').forEach(tx => {
+            if (idx[tx.address] && idx[w.a] && !netTxAnims.find(a => a.txid === tx.txid)) {
+              netTxAnims.push({ from: idx[w.a], to: idx[tx.address], prog: 0, txid: tx.txid || Date.now() });
+            }
+          });
+        }
+      } catch (e) { }
     }
 
-    // D3.js Visualization
-    let viz = null;
+    // Store dragged positions to preserve them across redraws
+    let draggedPositions = {};
 
-    function initVisualization() {
-      const container = document.getElementById('network-viz-container');
-      const canvas = document.getElementById('network-viz-canvas');
-      
-      const width = container.clientWidth;
-      const height = container.clientHeight;
+    function buildNetNodes(W, H) {
+      const rawMiners = (netData && netData.miners) || [];
+      if (!rawMiners.length) return [];
 
-      const svg = d3.select(canvas)
-        .attr('width', width)
-        .attr('height', height);
-
-      svg.selectAll('*').remove();
-
-      const vizContainer = svg.append('g');
-      const linkGroup = vizContainer.append('g');
-      const nodeGroup = vizContainer.append('g');
-
-      // Arrow marker
-      svg.append('defs').append('marker')
-        .attr('id', 'arrow')
-        .attr('viewBox', '0 -5 10 10')
-        .attr('refX', 18)
-        .attr('refY', 0)
-        .attr('markerWidth', 5)
-        .attr('markerHeight', 5)
-        .attr('orient', 'auto')
-        .append('path')
-        .attr('d', 'M0,-4L10,0L0,4')
-        .style('fill', '#8b5cf6')
-        .style('opacity', 0.5);
-
-      const zoom = d3.zoom()
-        .scaleExtent([0.1, 10])
-        .on('zoom', (event) => {
-          vizContainer.attr('transform', event.transform);
-        });
-
-      svg.call(zoom);
-
-      viz = { svg, vizContainer, linkGroup, nodeGroup, width, height, simulation: null };
-      console.log('✓ Visualization initialized');
-    }
-
-    function updateVisualization() {
-      if (!viz) return;
-
-      // Count referrals for each miner
-      const referralCounts = {};
-      blockchainState.miners.forEach(m => {
-        referralCounts[m.address] = 0;
-      });
-      
-      blockchainState.miners.forEach(m => {
-        if (m.referrer && referralCounts[m.referrer] !== undefined) {
-          referralCounts[m.referrer]++;
+      let miners = [...rawMiners];
+      const addrMap = new Map();
+      miners.forEach(m => addrMap.set(m.address, m));
+      miners.forEach(m => {
+        if (m.referrer && !addrMap.has(m.referrer)) {
+          const dummy = { address: m.referrer, blocks_mined: 0, balance_kot: '0', is_mining: false, referrer: null };
+          miners.push(dummy);
+          addrMap.set(m.referrer, dummy);
         }
       });
 
-      const miners = blockchainState.miners.map(m => ({
-        ...m,
-        referralCount: referralCounts[m.address] || 0,
-        radius: Math.sqrt((referralCounts[m.address] || 0) + 1) * 12 + 15
-      }));
+      const maxB = Math.max(1, ...miners.map(m => m.blocks_mined || 1));
+      const cx = W / 2, cy = H / 2, rad = Math.min(W, H) * 0.36;
+      return miners.map((m, i) => {
+        const addr = m.address || '';
+        const a = (2 * Math.PI * i) / miners.length - Math.PI / 2;
+        const sz = Math.max(18, Math.sqrt((m.blocks_mined || 1) / maxB) * 50);
+        // Use dragged position if available, otherwise calculate default
+        const defaultX = cx + rad * Math.cos(a);
+        const defaultY = cy + rad * Math.sin(a);
+        const pos = draggedPositions[addr] || { x: defaultX, y: defaultY };
+        return {
+          x: pos.x, y: pos.y, r: sz, addr: addr,
+          addrShort: addr.slice(0, 8) + '...' + addr.slice(-6),
+          blocks: m.blocks_mined || 0, balance: m.balance_kot || '0', isMining: !!m.is_mining,
+          isMe: !!(w.a && addr === w.a), ref: m.referrer || null, phase: i * 0.9,
+          reward: m.total_reward_kot || '0'
+        };
+      });
+    }
 
-      // Create links
-      const links = [];
-      miners.forEach((m, i) => {
-        if (m.referrer) {
-          const refIdx = miners.findIndex(r => r.address === m.referrer);
-          if (refIdx >= 0) {
-            links.push({ source: refIdx, target: i });
+    function drawNet() {
+      const canvas = $('bubbleCanvas');
+      if (!canvas || !canvas.isConnected) return;
+      const ctx = canvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      const W = canvas.clientWidth, H = canvas.clientHeight;
+      if (!W || !H) return;
+      if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
+        canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr); ctx.scale(dpr, dpr);
+      }
+      ctx.clearRect(0, 0, W, H);
+      if (!netData || !(netData.miners && netData.miners.length)) {
+        ctx.fillStyle = '#bbb'; ctx.font = '13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(netData ? 'No miners on network yet' : 'Fetching network data...', W / 2, H / 2);
+        return;
+      }
+      const nodes = buildNetNodes(W, H);
+      netNodes = nodes;
+      const idx = {}; nodes.forEach(n => idx[n.addr] = n);
+      const t = Date.now() * 0.001;
+
+      // Referral lines with arrows (always visible, brighter on hover)
+      nodes.forEach(n => {
+        if (!n.ref || !idx[n.ref]) return;
+        const tgt = idx[n.ref]; // tgt is the referrer
+        const hov = netHover >= 0 && (nodes[netHover]?.addr === n.addr || nodes[netHover]?.addr === n.ref);
+        ctx.save();
+        // Draw gradient line from referred to referrer
+        const grad = ctx.createLinearGradient(n.x, n.y, tgt.x, tgt.y);
+        grad.addColorStop(0, hov ? 'rgba(74,222,128,0.9)' : 'rgba(74,222,128,0.4)');
+        grad.addColorStop(1, hov ? 'rgba(34,197,94,0.9)' : 'rgba(34,197,94,0.25)');
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = hov ? 3 : 1.5;
+        ctx.beginPath(); ctx.moveTo(n.x, n.y); ctx.lineTo(tgt.x, tgt.y); ctx.stroke();
+        // Arrow head pointing to referrer (always visible)
+        const dx = tgt.x - n.x, dy = tgt.y - n.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
+        const arrowPos = 0.7; // Position along line
+        const mx = n.x + dx * arrowPos, my = n.y + dy * arrowPos;
+        const nx2 = dx / d, ny2 = dy / d;
+        const arrowSize = hov ? 10 : 6;
+        ctx.fillStyle = hov ? '#4ade80' : 'rgba(74,222,128,0.6)';
+        ctx.beginPath();
+        ctx.moveTo(mx + nx2 * arrowSize, my + ny2 * arrowSize);
+        ctx.lineTo(mx - ny2 * arrowSize * 0.6 - nx2 * arrowSize * 0.3, my + nx2 * arrowSize * 0.6 - ny2 * arrowSize * 0.3);
+        ctx.lineTo(mx + ny2 * arrowSize * 0.6 - nx2 * arrowSize * 0.3, my - nx2 * arrowSize * 0.6 - ny2 * arrowSize * 0.3);
+        ctx.closePath(); ctx.fill();
+        ctx.restore();
+      });
+
+      // TX animations (money moving)
+      netTxAnims = netTxAnims.filter(a => a.prog < 1);
+      netTxAnims.forEach(a => {
+        a.prog = Math.min(1, a.prog + 0.006);
+        const f = a.from, t2 = a.to; if (!f || !t2) return;
+        const px = f.x + (t2.x - f.x) * a.prog, py = f.y + (t2.y - f.y) * a.prog;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(251,191,36,0.3)'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 7]);
+        ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(t2.x, t2.y); ctx.stroke();
+        ctx.setLineDash([]); ctx.fillStyle = '#fbbf24';
+        ctx.beginPath(); ctx.arc(px, py, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      });
+
+      // Nodes
+      nodes.forEach((n, i) => {
+        const hov = netHover === i;
+        const pulse = 0.5 + 0.5 * Math.sin(t * 2.2 + n.phase);
+        if (n.isMining) {
+          ctx.save(); ctx.strokeStyle = `rgba(22,163,74,${0.2 + 0.4 * pulse})`; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 5 + 8 * pulse, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+        }
+        if (hov) {
+          ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 2.5;
+          ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 7, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+        }
+        ctx.fillStyle = n.isMe ? '#2563eb' : n.isMining ? '#16a34a' : '#1a1a1a';
+        ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2); ctx.fill();
+        if (n.r > 11) {
+          ctx.fillStyle = 'rgba(255,255,255,0.92)';
+          ctx.font = `bold ${Math.min(n.r * 0.44, 12)}px sans-serif`;
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(n.blocks > 999 ? Math.round(n.blocks / 1000) + 'k' : n.blocks, n.x, n.y);
+        }
+        if (n.isMe) {
+          ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '9px sans-serif';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+          ctx.fillText('YOU', n.x, n.y + n.r + 3);
+        }
+      });
+      ctx.textBaseline = 'alphabetic';
+      set('binfo', el => el.textContent = nodes.length + ' nodes');
+    }
+
+    function netLoop() {
+      if (Date.now() - netLastFetch > 5000) { netLastFetch = Date.now(); fetchNetData(); }
+      drawNet();
+      netAnimFrame = requestAnimationFrame(netLoop);
+    }
+
+    function startNetMap() {
+      if (!netTooltipSetup) { setupNetTooltip(); netTooltipSetup = true; }
+      if (netAnimFrame) cancelAnimationFrame(netAnimFrame);
+      netLastFetch = 0; fetchNetData();
+      netAnimFrame = requestAnimationFrame(netLoop);
+    }
+
+    function stopNetMap() {
+      if (netAnimFrame) { cancelAnimationFrame(netAnimFrame); netAnimFrame = null; }
+      set('nettooltip', el => el.style.display = 'none');
+    }
+
+    function setupNetTooltip() {
+      const canvas = $('bubbleCanvas');
+      if (!canvas) return;
+
+      // Drag state - shared across handlers
+      let dragIdx = -1, dragOffX = 0, dragOffY = 0;
+
+      // Combined mousemove handler for both tooltip and drag
+      canvas.addEventListener('mousemove', e => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+
+        // Handle drag first (higher priority)
+        if (dragIdx >= 0 && netNodes[dragIdx]) {
+          const newX = mx + dragOffX;
+          const newY = my + dragOffY;
+          netNodes[dragIdx].x = newX;
+          netNodes[dragIdx].y = newY;
+          // Save dragged position
+          draggedPositions[netNodes[dragIdx].addr] = { x: newX, y: newY };
+          drawNet();
+          $('nettooltip').style.display = 'none';
+          return;
+        }
+
+        // Tooltip handling
+        let found = -1;
+        for (let i = 0; i < netNodes.length; i++) {
+          const n = netNodes[i];
+          const dx = n.x - mx, dy = n.y - my;
+          if (Math.sqrt(dx * dx + dy * dy) < n.r + 8) { found = i; break; }
+        }
+        netHover = found;
+        const tip = $('nettooltip');
+        if (found >= 0) {
+          const n = netNodes[found];
+          const statusColor = n.isMining ? '#4ade80' : (n.isMe ? '#2563eb' : '#666');
+          const statusText = n.isMining ? '⚡ Mining' : (n.isMe ? 'Your Wallet' : 'Inactive');
+          tip.innerHTML =
+            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #333">' +
+            '<span style="width:12px;height:12px;border-radius:50%;background:' + statusColor + ';box-shadow:0 0 8px ' + statusColor + '"></span>' +
+            '<b style="font-size:15px;color:#fff">' + (n.isMe ? 'Your Address' : 'Miner') + '</b>' +
+            '<span style="font-size:11px;color:' + statusColor + ';margin-left:auto;font-weight:600">' + statusText + '</span>' +
+            '</div>' +
+            '<div class="tt-addr" style="margin-bottom:10px">' + n.addr + '</div>' +
+            '<div class="tt-row"><span class="tt-label">Blocks Mined</span><span class="tt-value" style="color:#4ade80;font-weight:700">' + n.blocks + '</span></div>' +
+            '<div class="tt-row"><span class="tt-label">Balance</span><span class="tt-value" style="color:#fbbf24;font-weight:700">' + (n.balance || '0') + ' KOT</span></div>' +
+            '<div class="tt-row"><span class="tt-label">Total Rewards</span><span class="tt-value" style="color:#60a5fa">' + (n.reward || '0') + ' KOT</span></div>' +
+            (n.ref ? '<div class="tt-row" style="margin-top:6px;padding-top:6px;border-top:1px solid #333"><span class="tt-label">Referrer</span><span class="tt-value" style="font-size:9px;color:#4ade80">' + n.ref.slice(0, 12) + '...' + n.ref.slice(-6) + '</span></div>' : '');
+          const tx = e.clientX, ty = e.clientY;
+          tip.style.display = 'block';
+          const tW = tip.offsetWidth || 240;
+          const tH = tip.offsetHeight || 150;
+          tip.style.left = Math.min(tx + 16, window.innerWidth - tW - 20) + 'px';
+          tip.style.top = Math.min(Math.max(10, ty - 50), window.innerHeight - tH - 20) + 'px';
+          canvas.style.cursor = 'grab';
+        } else {
+          tip.style.display = 'none';
+          canvas.style.cursor = 'default';
+        }
+      });
+
+      canvas.addEventListener('mouseleave', () => {
+        netHover = -1;
+        if (dragIdx >= 0 && netNodes[dragIdx]) {
+          draggedPositions[netNodes[dragIdx].addr] = { x: netNodes[dragIdx].x, y: netNodes[dragIdx].y };
+        }
+        dragIdx = -1;
+        canvas.style.cursor = 'default';
+        set('nettooltip', el => el.style.display = 'none');
+      });
+
+      // Mousedown - start drag
+      canvas.addEventListener('mousedown', e => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+        dragIdx = -1;
+        for (let i = 0; i < netNodes.length; i++) {
+          const n = netNodes[i];
+          const dx = n.x - mx, dy = n.y - my;
+          if (Math.sqrt(dx * dx + dy * dy) < n.r + 6) {
+            dragIdx = i;
+            dragOffX = dx;
+            dragOffY = dy;
+            break;
           }
         }
-      });
-
-      // Update simulation
-      if (!viz.simulation) {
-        viz.simulation = d3.forceSimulation(miners)
-          .force('charge', d3.forceManyBody().strength(-300))
-          .force('center', d3.forceCenter(viz.width / 2, viz.height / 2))
-          .force('collision', d3.forceCollide().radius(d => d.radius + 5))
-          .force('link', d3.forceLink(links).id((d, i) => i).distance(100).strength(0.5))
-          .alphaDecay(0.02)
-          .velocityDecay(0.3);
-      } else {
-        viz.simulation.nodes(miners);
-        viz.simulation.force('link').links(links);
-        viz.simulation.alpha(0.5).restart();
-      }
-
-      // Draw links
-      const lineSelection = viz.linkGroup.selectAll('line')
-        .data(links, d => `${d.source}-${d.target}`);
-
-      lineSelection.exit().remove();
-
-      lineSelection.enter()
-        .append('line')
-        .style('stroke', '#8b5cf6')
-        .style('stroke-width', 1.5)
-        .style('stroke-opacity', 0.3)
-        .attr('marker-end', 'url(#arrow)')
-        .merge(lineSelection);
-
-      // Draw nodes
-      const circles = viz.nodeGroup.selectAll('circle')
-        .data(miners, d => d.address);
-
-      circles.exit().remove();
-
-      const enter = circles.enter()
-        .append('circle')
-        .attr('r', 0)
-        .style('cursor', 'grab')
-        .call(d3.drag()
-          .on('start', (event, d) => {
-            if (!event.active) viz.simulation.alphaTarget(0.3).restart();
-            d.fx = d.x;
-            d.fy = d.y;
-          })
-          .on('drag', (event, d) => {
-            d.fx = event.x;
-            d.fy = event.y;
-          })
-          .on('end', (event, d) => {
-            if (!event.active) viz.simulation.alphaTarget(0);
-            d.fx = null;
-            d.fy = null;
-          }))
-        .on('click', (event, d) => {
-          event.stopPropagation();
-          showMinerDetails(d);
-        });
-
-      const merged = enter.merge(circles);
-
-      merged
-        .attr('r', d => d.radius)
-        .style('fill', d => {
-          const blocksSince = blockchainState.height - d.last_mined_height;
-          if (blocksSince < 60) return '#22c55e';
-          if (blocksSince < 1440) return '#eab308';
-          if (blocksSince < 2880) return '#f97316';
-          return '#71717a';
-        })
-        .style('stroke', 'rgba(255,255,255,0.3)')
-        .style('stroke-width', 2)
-        .classed('viz-active-miner', d => {
-          const blocksSince = blockchainState.height - d.last_mined_height;
-          return blocksSince < 60;
-        });
-
-      // Labels
-      const labels = viz.nodeGroup.selectAll('text')
-        .data(miners.filter(d => d.radius > 20), d => d.address);
-
-      labels.exit().remove();
-
-      labels.enter()
-        .append('text')
-        .attr('dy', '0.3em')
-        .attr('text-anchor', 'middle')
-        .style('fill', 'white')
-        .style('font-size', '9px')
-        .style('font-weight', 'bold')
-        .style('pointer-events', 'none')
-        .text(d => d.referralCount)
-        .merge(labels);
-
-      // Tick handler with optimized rendering
-      viz.simulation.on('tick', () => {
-        // Update lines
-        const lines = viz.linkGroup.selectAll('line');
-        lines.each(function(d) {
-          const line = d3.select(this);
-          const dx = d.target.x - d.source.x;
-          const dy = d.target.y - d.source.y;
-          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-          
-          line
-            .attr('x1', d.source.x)
-            .attr('y1', d.source.y)
-            .attr('x2', d.target.x - (dx / dist) * d.target.radius)
-            .attr('y2', d.target.y - (dy / dist) * d.target.radius);
-        });
-
-        // Update circles
-        viz.nodeGroup.selectAll('circle')
-          .attr('cx', d => d.x)
-          .attr('cy', d => d.y);
-
-        // Update labels
-        viz.nodeGroup.selectAll('text')
-          .attr('x', d => d.x)
-          .attr('y', d => d.y);
-      });
-
-      // Update stats
-      document.getElementById('stat-height').textContent = blockchainState.height;
-      document.getElementById('stat-miners').textContent = miners.length;
-      document.getElementById('stat-referrals').textContent = links.length;
-      document.getElementById('demo-height').textContent = blockchainState.height;
-      document.getElementById('demo-supply').textContent = supplyAt(blockchainState.height).toFixed(2);
-      
-      updateReferralStats(miners, links);
-      updateGovernanceStats(miners);
-      updateL2Stats();
-    }
-
-    function updateReferralStats(miners, links) {
-      const totalRefs = links.length;
-      const totalBonus = (totalRefs * 0.5).toFixed(2);
-      const avgRefs = miners.length > 0 ? (totalRefs / miners.length).toFixed(1) : '0.0';
-      
-      const depths = new Map();
-      miners.forEach(m => {
-        let depth = 0;
-        let current = m;
-        const visited = new Set();
-        while (current.referrer && !visited.has(current.address)) {
-          visited.add(current.address);
-          depth++;
-          current = miners.find(x => x.address === current.referrer);
-          if (!current) break;
+        if (dragIdx >= 0) {
+          canvas.style.cursor = 'grabbing';
+          e.preventDefault();
         }
-        depths.set(m.address, depth);
       });
-      const maxDepth = depths.size > 0 ? Math.max(...depths.values()) : 0;
-      
-      document.getElementById('ref-total').textContent = totalRefs;
-      document.getElementById('ref-bonus').textContent = totalBonus + ' KOT';
-      document.getElementById('ref-avg').textContent = avgRefs;
-      document.getElementById('ref-depth').textContent = maxDepth;
-      
-      const refCounts = {};
-      miners.forEach(m => {
-        const count = links.filter(l => l.source === miners.indexOf(m)).length;
-        refCounts[m.address] = count;
-      });
-      
-      const top5 = Object.entries(refCounts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5);
-      
-      const leaderboard = document.getElementById('ref-leaderboard');
-      if (top5.length === 0) {
-        leaderboard.innerHTML = '';
-        const div = document.createElement('div');
-        div.style.cssText = 'color: var(--dim); padding: 8px;';
-        div.textContent = 'No referrals yet';
-        leaderboard.appendChild(div);
-      } else {
-        leaderboard.innerHTML = top5.map(([ addr, count], i) => `
-          <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line);">
-            <span style="color: var(--dim);">#${i + 1}</span>
-            <span style="color: var(--text); font-family: monospace; font-size: 10px;">${addr.substring(0, 20)}...</span>
-            <span style="color: var(--accent); font-weight: 700;">${count} refs</span>
-          </div>
-        `).join('');
-      }
-      
-      drawReferralChart(refCounts);
-    }
 
-    function drawReferralChart(refCounts) {
-      const canvas = document.getElementById('ref-chart');
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      const width = canvas.width = canvas.offsetWidth * 2;
-      const height = canvas.height = 360;
-      
-      ctx.clearRect(0, 0, width, height);
-      
-      const counts = Object.values(refCounts);
-      if (counts.length === 0) {
-        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--dim');
-        ctx.font = '24px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('No data yet', width / 2, height / 2);
-        return;
-      }
-      
-      const distribution = {};
-      counts.forEach(c => {
-        distribution[c] = (distribution[c] || 0) + 1;
-      });
-      
-      const entries = Object.entries(distribution).sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
-      const maxCount = Math.max(...entries.map(e => e[1]));
-      const barWidth = width / entries.length * 0.8;
-      const gap = width / entries.length * 0.2;
-      
-      entries.forEach(([refs, count], i) => {
-        const barHeight = (count / maxCount) * (height - 40);
-        const x = i * (barWidth + gap) + gap;
-        const y = height - barHeight - 20;
-        
-        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent');
-        ctx.fillRect(x, y, barWidth, barHeight);
-        
-        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text');
-        ctx.font = '20px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText(refs, x + barWidth / 2, height - 5);
-        ctx.fillText(count, x + barWidth / 2, y - 5);
-      });
-    }
-
-    function updateGovernanceStats(miners) {
-      const totalBlocks = miners.reduce((sum, m) => sum + m.blocks_mined, 0);
-      
-      document.getElementById('gov-active').textContent = '0';
-      document.getElementById('gov-votes').textContent = '0';
-      document.getElementById('gov-participation').textContent = '0%';
-      
-      const proposals = document.getElementById('gov-proposals');
-      proposals.innerHTML = '';
-      const div = document.createElement('div');
-      div.style.cssText = 'color: var(--dim); padding: 8px;';
-      div.textContent = 'No active proposals';
-      proposals.appendChild(div);
-      
-      drawGovernanceChart(miners, totalBlocks);
-    }
-
-    function drawGovernanceChart(miners, totalBlocks) {
-      const canvas = document.getElementById('gov-chart');
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      const width = canvas.width = canvas.offsetWidth * 2;
-      const height = canvas.height = 360;
-      
-      ctx.clearRect(0, 0, width, height);
-      
-      if (miners.length === 0 || totalBlocks === 0) {
-        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--dim');
-        ctx.font = '24px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('No data yet', width / 2, height / 2);
-        return;
-      }
-      
-      const top10 = miners
-        .map(m => ({
-          addr: m.address,
-          blocks: m.blocks_mined,
-          power: (m.blocks_mined / totalBlocks * 100)
-        }))
-        .sort((a, b) => b.blocks - a.blocks)
-        .slice(0, 10);
-      
-      const maxPower = Math.max(...top10.map(m => m.power));
-      const barHeight = (height - 40) / top10.length * 0.8;
-      const gap = (height - 40) / top10.length * 0.2;
-      
-      top10.forEach((miner, i) => {
-        const barWidth = (miner.power / maxPower) * (width - 200);
-        const y = i * (barHeight + gap) + gap;
-        
-        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent');
-        ctx.fillRect(150, y, barWidth, barHeight);
-        
-        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text');
-        ctx.font = '18px monospace';
-        ctx.textAlign = 'right';
-        ctx.fillText(miner.addr.substring(0, 12) + '...', 145, y + barHeight / 2 + 6);
-        
-        ctx.textAlign = 'left';
-        ctx.fillText(miner.power.toFixed(2) + '%', 155 + barWidth, y + barHeight / 2 + 6);
-      });
-    }
-
-    function updateL2Stats() {
-      document.getElementById('l2-open').textContent = '0';
-      document.getElementById('l2-locked').textContent = '0 KOT';
-      document.getElementById('l2-txcount').textContent = '0';
-      
-      const channels = document.getElementById('l2-channels');
-      channels.innerHTML = '';
-      const div = document.createElement('div');
-      div.style.cssText = 'color: var(--dim); padding: 8px;';
-      div.textContent = 'No active channels - Phase 2 feature';
-      channels.appendChild(div);
-    }
-
-    async function updateBlocksTab() {
-      const height = blockchainState.height;
-      document.getElementById('block-latest').textContent = height;
-      document.getElementById('block-avgtime').textContent = '45s';
-      document.getElementById('block-totaltx').textContent = height;
-      document.getElementById('block-size').textContent = ((height * 2) / 1024).toFixed(2) + ' MB';
-      
-      const blocksList = document.getElementById('blocks-list');
-      if (height === 0) {
-        blocksList.innerHTML = '';
-        const div = document.createElement('div');
-        div.style.cssText = 'color: var(--dim); padding: 8px;';
-        div.textContent = 'No blocks yet';
-        blocksList.appendChild(div);
-        return;
-      }
-      
-      let html = '';
-      for (let i = Math.max(0, height - 10); i <= height; i++) {
-        html = `<div style="padding: 8px; border-bottom: 1px solid var(--line); font-family: monospace;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-            <span style="color: var(--accent); font-weight: 700;">Block #${i}</span>
-            <span style="color: var(--dim); font-size: 10px;">just now</span>
-          </div>
-          <div style="color: var(--text); font-size: 10px;">Hash: ${Math.random().toString(36).substring(2, 15)}...</div>
-        </div>` + html;
-      }
-      blocksList.innerHTML = html;
-    }
-
-    function updateNetworkTab() {
-      document.getElementById('net-protocol').textContent = '1';
-      document.getElementById('net-height').textContent = blockchainState.height;
-      document.getElementById('net-miners').textContent = blockchainState.miners.length;
-      document.getElementById('net-interval').textContent = '45 sec';
-      document.getElementById('net-reward').textContent = document.getElementById('demo-reward').textContent;
-      document.getElementById('net-diff').textContent = document.getElementById('demo-diff').textContent;
-      document.getElementById('net-hash').textContent = document.getElementById('demo-hashrate').textContent;
-      
-      const refCount = blockchainState.miners.filter(m => m.referrer).length;
-      document.getElementById('net-refs').textContent = refCount;
-      document.getElementById('net-props').textContent = '0';
-    }
-
-    function updateMinerTab() {
-      document.getElementById('mine-reward').textContent = document.getElementById('demo-reward').textContent;
-      document.getElementById('mine-hashrate').textContent = document.getElementById('demo-hashrate').textContent;
-      document.getElementById('mine-diff').textContent = document.getElementById('demo-diff').textContent;
-    }
-
-    // Tab navigation
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const page = btn.getAttribute('data-page');
-        if (!page) return;
-        
-        // Hide all pages
-        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-        
-        // Show selected page
-        const targetPage = document.getElementById(`page-${page}`);
-        if (targetPage) {
-          targetPage.classList.add('active');
-          
-          // Update tab-specific data
-          if (page === 'blocks') updateBlocksTab();
-          if (page === 'network') updateNetworkTab();
-          if (page === 'mine') updateMinerTab();
+      // Mouseup - end drag and save position
+      canvas.addEventListener('mouseup', () => {
+        if (dragIdx >= 0 && netNodes[dragIdx]) {
+          draggedPositions[netNodes[dragIdx].addr] = { x: netNodes[dragIdx].x, y: netNodes[dragIdx].y };
         }
-        
-        // Update active button
-        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
+        dragIdx = -1;
+        canvas.style.cursor = 'default';
       });
-    });
-    
-    // Search functionality
-    document.getElementById('search-btn')?.addEventListener('click', () => {
-      const query = document.getElementById('search-input').value.trim();
-      if (!query) return;
-      
-      // Check if it's a block height (number)
-      if (/^\d+$/.test(query)) {
-        const height = parseInt(query);
-        if (height <= blockchainState.height) {
-          alert(`Block ${height}\nHash: ${Math.random().toString(36).substring(2, 15)}...\nMiner: Random\nTransactions: ${Math.floor(Math.random() * 5)}`);
+    }
+
+    function startSync() {
+      if (timer) return;
+      timer = setInterval(sync, 2000); // Real-time updates every 2 seconds
+      sync();
+    }
+
+    async function sync() {
+      if (syncRunning) return;
+      syncRunning = true;
+      try {
+        // Fire core RPC calls in parallel
+        const [infoRes, peerRes, msRes] = await Promise.allSettled([
+          rpc('getmininginfo'),
+          rpc('getpeerinfo'),
+          rpc('get_mining_status')
+        ]);
+
+        if (infoRes.status === 'fulfilled') { c.h = infoRes.value.blocks || 0; c.mp = infoRes.value.mempool || 0; }
+        if (peerRes.status === 'fulfilled') { c.p = peerRes.value.peer_count || 0; }
+
+        if (msRes.status === 'fulfilled') {
+          const ms = msRes.value;
+          mi.act = !!ms.active;
+          set('mdot', el => { if (mi.act) el.classList.add('on'); else el.classList.remove('on'); });
+          set('mtext', el => el.textContent = mi.act ? 'Mining' : 'Stopped');
+          set('b8', el => { el.textContent = mi.act ? 'Stop Mining' : 'Start Mining'; el.className = mi.act ? 'btn btn-d btn-full' : 'btn btn-p btn-full'; });
+          set('mbf', el => el.textContent = ms.blocks_found || 0);
+          const hr = ms.hashrate || 0;
+          set('mhr', el => el.textContent = hr >= 1000000 ? (hr / 1000000).toFixed(2) + ' MH/s' : hr >= 1000 ? (hr / 1000).toFixed(1) + ' KH/s' : hr.toFixed(0) + ' H/s');
+          netStats.netHashrate = hr;
+          set('net-hashrate', el => el.textContent = hr >= 1000000 ? (hr / 1000000).toFixed(2) + 'M' : hr >= 1000 ? (hr / 1000).toFixed(1) + 'K' : hr.toFixed(0));
+          const up = ms.uptime_seconds || 0;
+          set('mut', el => el.textContent = up > 0 ? formatUptime(up) : '--');
+          set('maddr', el => el.textContent = mi.act && w.a ? 'Mining to ' + w.a.slice(0, 16) + '...' : '');
+          // Update difficulty from latest block
+          const diff = ms.difficulty_bits || 0;
+          set('mdiff', el => el.textContent = diff > 0 ? diff + ' bits' : '--');
+          // Update mining log
+          if (mi.act && hr > 0) {
+            const logEl = $('mlog');
+            if (logEl) {
+              const ts = new Date().toLocaleTimeString();
+              const newLine = '[' + ts + '] Hash: ' + hr.toFixed(0) + ' H/s | Nonces: ' + (ms.nonces_total || 0);
+              const lines = logEl.textContent.split('\n').slice(-9);
+              lines.push(newLine);
+              logEl.textContent = lines.join('\n');
+              logEl.scrollTop = logEl.scrollHeight;
+            }
+          }
+        }
+
+        if (w.a) {
+          // Fire wallet-specific calls in parallel
+          const [balRes, rfRes, giRes, txRes] = await Promise.allSettled([
+            rpc('getbalance', [w.a]),
+            rpc('getreferralinfo', [w.a]),
+            rpc('getgovernanceinfo', [w.a]),
+            rpc('gettransactionhistory', [w.a, 15])
+          ]);
+          if (balRes.status === 'fulfilled') { w.b = balRes.value.balance_knots || 0; }
+          if (rfRes.status === 'fulfilled') {
+            const rf = rfRes.value;
+            r.c = rf.privacy_code || '';
+            r.n = rf.total_referred_miners || 0;
+            r.e = parseFloat(rf.total_referral_bonus_kot) || 0;
+            // Update referral status indicator
+            const hasReferred = (rf.total_referred_miners || 0) > 0;
+            const isActive = rf.is_active_referrer === true;
+            const hasMined = rf.referred_by !== undefined; // has mined if we have referral info
+            set('refstatdot', el => {
+              if (hasReferred && isActive) {
+                el.style.background = '#4ade80';
+              } else if (hasReferred && !isActive) {
+                el.style.background = '#fbbf24';
+              } else {
+                el.style.background = '#666';
+              }
+            });
+            set('refstattext', el => {
+              if (hasReferred && isActive) {
+                el.style.color = '#4ade80';
+                el.textContent = 'Active Referrer — Your referrals will earn you 5% bonus';
+              } else if (hasReferred && !isActive) {
+                el.style.color = '#fbbf24';
+                el.textContent = 'Referrer Inactive — Mine a block within last 48 hours to earn bonuses';
+              } else if (hasMined) {
+                el.style.color = '#888';
+                el.textContent = 'No Referrals Yet — Share your referral link to earn 5% bonuses';
+              } else {
+                el.style.color = '#dc2626';
+                el.textContent = 'Not Referred — You were not referred by anyone';
+              }
+            });
+          }
+          if (giRes.status === 'fulfilled') {
+            const gi = giRes.value;
+            set('gw', el => el.textContent = gi.governance_weight_bps ?? '--');
+            set('gwp', el => el.textContent = gi.governance_weight_pct ?? '--');
+            set('gcap', el => el.textContent = gi.cap_bps ?? '--');
+            set('gstat', el => el.textContent = gi.is_capped ? 'CAPPED' : 'OK');
+          }
+          if (txRes.status === 'fulfilled') {
+            const txlist = txRes.value.transactions || [];
+            set('txhist', el => {
+              if (!txlist.length) { el.textContent = 'No transactions yet'; return; }
+              el.innerHTML = txlist.map(tx => {
+                const cls = tx.type === 'sent' ? 'tx-sent' : tx.type === 'received' ? 'tx-recv' : 'tx-mine';
+                const label = tx.type === 'sent' ? 'Sent' : tx.type === 'received' ? 'Received' : 'Mined';
+                return '<div class="tx-row ' + cls + '"><span class="tx-type">' + label + '</span><span>' + tx.amount_kot + ' KOT</span><span style="color:#aaa">#' + tx.block_height + '</span></div>';
+              }).join('');
+            });
+          }
+          maybeRegisterReferral();
+        }
+
+        await refreshBlocks();
+        updateUI();
+        $('dot').classList.add('on');
+        $('status').textContent = 'Block ' + c.h + ' | ' + c.p + ' peers';
+      } catch (e) {
+        $('dot').classList.remove('on');
+        $('status').textContent = 'Disconnected';
+      }
+      syncRunning = false;
+    }
+
+    function set(id, fn) { const el = $(id); if (el) fn(el); }
+
+    async function refreshBlocks() {
+      if (!$('blocks') || c.h === lastBlocksHeight) return;
+      lastBlocksHeight = c.h;
+      const start = Math.max(0, c.h - 9);
+      const heights = [];
+      for (let h = start; h <= c.h; h++)heights.push(h);
+      const results = await Promise.allSettled(heights.map(async h => {
+        const bh = await rpc('getblockhash', [h]);
+        const b = await rpc('getblock', [bh]);
+        const ts = b.time ? new Date(b.time * 1000).toLocaleTimeString() : '';
+        const m = (b.miner || '').toString();
+        const ms = m.length > 20 ? m.slice(0, 8) + '..' + m.slice(-6) : m;
+        return { h: b.height, ts, tx: b.tx_count || 0, miner: ms };
+      }));
+      const rows = results.map((r, i) => {
+        if (r.status === 'fulfilled') {
+          const d = r.value;
+          return '<div class="blk-row" data-height="' + d.h + '" style="cursor:pointer" title="Click to view details"><span class="blk-h">#' + d.h + '</span><span class="blk-ts">' + d.ts + '</span><span class="blk-tx">tx:' + d.tx + '</span><span class="blk-miner">' + d.miner + '</span></div>';
+        }
+        return '<div class="blk-row"><span class="blk-h">#' + heights[i] + '</span><span style="color:#dc2626">err</span></div>';
+      });
+      $('blocks').innerHTML = rows.reverse().join('');
+      // Add click handlers to view block details
+      $('blocks').querySelectorAll('.blk-row[data-height]').forEach(row => {
+        row.addEventListener('click', () => {
+          const h = row.getAttribute('data-height');
+          showPage('network');
+          $('blk-search').value = h;
+          $('btn-blk-search').click();
+        });
+      });
+    }
+
+    function updateUI() {
+      const kotBal = (w.b / K).toFixed(8);
+      set('bal', el => el.textContent = kotBal);
+      set('dashbal', el => el.textContent = parseFloat(kotBal).toFixed(2));
+      set('sendbalpre', el => el.textContent = kotBal);
+      set('addr', el => el.textContent = w.a || '--');
+      set('recaddr', el => el.textContent = w.a || '--');
+      set('h', el => el.textContent = c.h);
+      set('p', el => el.textContent = c.p);
+      set('m', el => el.textContent = c.mp);
+      set('rlink', el => el.textContent = r.c ? 'knotcoin:?ref=' + r.c : '--');
+      set('rc', el => el.textContent = r.n);
+      set('re', el => el.textContent = r.e.toFixed(8));
+      set('btime', el => el.textContent = 'Updated ' + new Date().toLocaleTimeString());
+    }
+
+    function show(id) {
+      ['s0', 's1', 's2', 's3'].forEach(x => $(x).classList.remove('active'));
+      $(id).classList.add('active');
+      $('sidebar').style.display = (id === 's3') ? 'flex' : 'none';
+    }
+
+    function showPage(name) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      const pg = $('pg-' + name);
+      if (pg) pg.classList.add('active');
+      document.querySelectorAll('.nav-item').forEach(n => {
+        n.classList.toggle('active', n.getAttribute('data-page') === name);
+      });
+      if (name === 'network') { stopNetMap(); setTimeout(startNetMap, 50); }
+      else stopNetMap();
+    }
+
+    async function init() {
+      // Setup button handlers FIRST so UI is always interactive
+      setup();
+
+      // Show correct screen immediately from localStorage
+      const mn = localStorage.getItem('knotcoin_mnemonic');
+      const ad = localStorage.getItem('knotcoin_address');
+      if (mn && ad) { w.m = mn; w.a = ad; show('s3'); }
+      else { show('s0'); }
+
+      // Connect to RPC in background - don't block anything
+      connectRpc();
+    }
+
+    async function connectRpc() {
+      // Try to read auth token if Tauri context (legacy support)
+      if (window.__TAURI__) {
+        try {
+          const inv = window.__TAURI__.core?.invoke || window.__TAURI__.invoke;
+          if (inv) { for (let i = 0; i < 10; i++) { try { auth = await inv('get_rpc_auth_token'); if (auth) break; } catch (e) { } await new Promise(r => setTimeout(r, 500)); } }
+        } catch (e) { }
+      }
+      // Poll for RPC with visual feedback, don't freeze UI
+      let att = 0;
+      while (att < 60) {
+        try {
+          await rpc('getblockcount');
+          if (w.a) startSync();
+          return;
+        } catch (e) {
+          att++;
+          $('status').textContent = 'Starting node… (' + att + '/60)';
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      }
+      $('status').textContent = 'Node offline';
+    }
+
+    function setup() {
+      // Onboarding: referral is on s0, collected BEFORE wallet creation
+      $('b0').addEventListener('click', async () => {
+        const rf = normalizeRefInput($('ref').value);
+        if (rf) localStorage.setItem('knotcoin_referrer', rf);
+        show('s1');
+        try { const wl = await rpc('wallet_create'); $('newm').textContent = wl.mnemonic; temp = wl; }
+        catch (e) {
+          if (e.message && e.message.includes('already initialized')) {
+            try { await rpc('wallet_reset'); const wl = await rpc('wallet_create'); $('newm').textContent = wl.mnemonic; temp = wl; }
+            catch (e2) { alert('Error: ' + e2.message); show('s0'); }
+          } else { alert('Error: ' + e.message); show('s0'); }
+        }
+      });
+      $('b1').addEventListener('click', () => {
+        const rf = normalizeRefInput($('ref').value);
+        if (rf) localStorage.setItem('knotcoin_referrer', rf);
+        show('s2');
+      });
+      $('b2').addEventListener('click', () => {
+        if (!temp) return alert('No wallet generated');
+        localStorage.setItem('knotcoin_mnemonic', temp.mnemonic);
+        localStorage.setItem('knotcoin_address', temp.address);
+        w.m = temp.mnemonic; w.a = temp.address; temp = null;
+        show('s3'); startSync();
+      });
+      $('b3').addEventListener('click', () => show('s0'));
+      $('b4').addEventListener('click', async () => {
+        const mn = $('impm').value.trim();
+        if (!mn) return alert('Enter mnemonic');
+        try {
+          const wl = await rpc('wallet_get_address', [mn]);
+          localStorage.setItem('knotcoin_mnemonic', mn);
+          localStorage.setItem('knotcoin_address', wl.address);
+          w.m = mn; w.a = wl.address;
+          show('s3'); startSync();
+        } catch (e) { alert('Error: ' + e.message); }
+      });
+      $('b5').addEventListener('click', () => show('s0'));
+
+      // Sidebar nav
+      document.querySelectorAll('.nav-item').forEach(n => {
+        n.addEventListener('click', () => showPage(n.getAttribute('data-page')));
+      });
+
+      // Send
+      $('b6').addEventListener('click', async () => {
+        const to = $('sendto').value.trim();
+        const amt = parseFloat($('sendamt').value) || 0;
+        if (!to || amt <= 0) return alert('Enter valid recipient and amount');
+        const res = $('sendres'); res.classList.remove('hidden'); res.textContent = 'Sending...';
+        try {
+          if (!w.m) return alert('Wallet not loaded');
+          const out = await rpc('wallet_send', [w.m, to, amt]);
+          res.textContent = 'Sent. TXID: ' + (out.txid || '');
+        } catch (e) { res.textContent = 'Error: ' + e.message; }
+      });
+
+      // Copy address
+      $('b7').addEventListener('click', () => { if (w.a) { navigator.clipboard.writeText(w.a); $('b7').textContent = 'Copied!'; setTimeout(() => $('b7').textContent = 'Copy Address', 1500); } });
+      $('addr').addEventListener('click', () => { if (w.a) navigator.clipboard.writeText(w.a); });
+      $('recaddr').addEventListener('click', () => { if (w.a) navigator.clipboard.writeText(w.a); });
+      $('rlink').addEventListener('click', () => { const t = $('rlink').textContent; if (t && t !== '--') navigator.clipboard.writeText(t); });
+
+      // Mining
+      $('b8').addEventListener('click', async () => {
+        if (mi.act) {
+          await rpc('stop_mining'); mi.act = false;
+          $('b8').textContent = 'Start Mining'; $('b8').className = 'btn btn-p btn-full';
+          $('mdot').classList.remove('on'); $('mtext').textContent = 'Stopped';
         } else {
-          alert(`Block ${height} not found. Current height: ${blockchainState.height}`);
+          await maybeRegisterReferral();
+          const threads = parseInt($('mthreads').value) || 4;
+          mi.threads = Math.max(1, Math.min(8, threads));
+          const rf = localStorage.getItem('knotcoin_referrer');
+          const args = rf ? [w.m, mi.threads, rf] : [w.m, mi.threads];
+          await rpc('start_mining', args); mi.act = true;
+          $('b8').textContent = 'Stop Mining'; $('b8').className = 'btn btn-d btn-full';
+          $('mdot').classList.add('on'); $('mtext').textContent = 'Mining (' + mi.threads + ' threads)';
         }
-      }
-      // Check if it's an address
-      else if (query.startsWith('KOT1')) {
-        const miner = blockchainState.miners.find(m => m.address.includes(query.substring(0, 20)));
-        if (miner) {
-          alert(`Address: ${miner.address}\nBlocks Mined: ${miner.blocks_mined}\nLast Active: Block ${miner.last_mined_height}\nReferred by: ${miner.referrer || 'None'}`);
-        } else {
-          alert('Address not found in current network');
-        }
-      }
-      // Assume it's a hash
-      else {
-        alert(`Block Hash: ${query}\nHeight: ${Math.floor(Math.random() * blockchainState.height)}\nMiner: Random\nTransactions: ${Math.floor(Math.random() * 5)}`);
-      }
-    });
-    
-    document.getElementById('search-input')?.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        document.getElementById('search-btn').click();
-      }
-    });
-    
-    // Clock
-    setInterval(() => {
-      document.getElementById('demo-clock').textContent = new Date().toUTCString();
-    }, 1000);
-    
-    // Theme toggle
-    document.getElementById('theme-toggle')?.addEventListener('click', () => {
-      const current = document.documentElement.getAttribute('data-theme');
-      const next = current === 'dark' ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-theme', next);
-      localStorage.setItem('knot-theme', next);
-      document.getElementById('theme-toggle').textContent = next === 'dark' ? '☾' : '☼';
-    });
+      });
 
-    // Show miner details in styled modal
-    function showMinerDetails(miner) {
-      const blocksSince = blockchainState.height - miner.last_mined_height;
-      let status = 'INACTIVE';
-      let statusColor = '#71717a';
-      
-      if (blocksSince < 60) {
-        status = 'VERY ACTIVE';
-        statusColor = '#22c55e';
-      } else if (blocksSince < 1440) {
-        status = 'ACTIVE';
-        statusColor = '#eab308';
-      } else if (blocksSince < 2880) {
-        status = 'ELIGIBLE';
-        statusColor = '#f97316';
-      }
-      
-      // Count referrals
-      const referralCount = blockchainState.miners.filter(m => m.referrer === miner.address).length;
-      const referredMiners = blockchainState.miners.filter(m => m.referrer === miner.address);
-      
-      const referrerAddr = miner.referrer ? miner.referrer.substring(0, 20) + '...' : 'None (Genesis)';
-      const joinedAgo = Math.floor((Date.now() - miner.joined_at) / 3600000);
-      const estimatedReward = (miner.blocks_mined * 10).toFixed(8);
-      const referralBonus = (referralCount * 0.5).toFixed(8);
-      
-      const modal = document.createElement('div');
-      modal.className = 'modal active';
-      modal.innerHTML = `
-        <div class="modal-overlay"></div>
-        <div class="modal-content">
-          <div class="modal-header">
-            <h2 class="modal-title">Miner Details</h2>
-            <button class="modal-close">&times;</button>
-          </div>
-          <div class="modal-body">
-            <div class="modal-grid">
-              <div class="modal-section modal-full-width">
-                <h3>Identity</h3>
-                <div class="detail-row">
-                  <span class="detail-label">Address</span>
-                  <span class="detail-value hash-value">${escapeHtml(miner.address)}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Status</span>
-                  <span class="detail-value" style="color: ${escapeHtml(statusColor)}; font-weight: 800;">${escapeHtml(status)}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Joined</span>
-                  <span class="detail-value">${escapeHtml(String(joinedAgo))}h ago</span>
-                </div>
-              </div>
-              
-              <div class="modal-section">
-                <h3>Mining Stats</h3>
-                <div class="detail-row">
-                  <span class="detail-label">Blocks Mined</span>
-                  <span class="detail-value" style="color: var(--accent); font-weight: 800;">${escapeHtml(String(miner.blocks_mined))}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Last Block</span>
-                  <span class="detail-value">#${escapeHtml(String(miner.last_mined_height))}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Blocks Since</span>
-                  <span class="detail-value">${escapeHtml(String(blocksSince))} blocks</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Est. Rewards</span>
-                  <span class="detail-value" style="color: var(--ok);">${escapeHtml(estimatedReward)} KOT</span>
-                </div>
-              </div>
-              
-              <div class="modal-section">
-                <h3>Referral Network</h3>
-                <div class="detail-row">
-                  <span class="detail-label">Referrals Made</span>
-                  <span class="detail-value" style="color: var(--accent); font-weight: 800; font-size: 1.2em;">${escapeHtml(String(referralCount))}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Referred By</span>
-                  <span class="detail-value hash-value">${escapeHtml(referrerAddr)}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Referral Bonus</span>
-                  <span class="detail-value" style="color: var(--warn);">${escapeHtml(referralBonus)} KOT</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Network Depth</span>
-                  <span class="detail-value">${escapeHtml(miner.referrer ? 'Level 2+' : 'Genesis')}</span>
-                </div>
-              </div>
-              
-              <div class="modal-section modal-full-width">
-                <h3>Governance Weight</h3>
-                <div class="detail-row">
-                  <span class="detail-label">Voting Power</span>
-                  <span class="detail-value">${escapeHtml(((miner.blocks_mined / blockchainState.height) * 100).toFixed(2))}%</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Proposal Threshold</span>
-                  <span class="detail-value">${escapeHtml(miner.blocks_mined >= 10 ? 'Eligible' : 'Need ' + (10 - miner.blocks_mined) + ' more blocks')}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-      
-      document.body.appendChild(modal);
-      
-      // Close handlers
-      const closeModal = () => {
-        modal.classList.remove('active');
-        setTimeout(() => modal.remove(), 300);
-      };
-      
-      modal.querySelector('.modal-close').addEventListener('click', closeModal);
-      modal.querySelector('.modal-overlay').addEventListener('click', closeModal);
-      
-      // ESC key to close
-      const escHandler = (e) => {
-        if (e.key === 'Escape') {
-          closeModal();
-          document.removeEventListener('keydown', escHandler);
-        }
-      };
-      document.addEventListener('keydown', escHandler);
+      // Governance
+      $('bgovsend').addEventListener('click', async () => {
+        const hex = $('ghex').value.trim();
+        if (!hex || hex.length !== 64) return alert('Enter 64 hex chars');
+        const res = $('govsendres'); res.classList.remove('hidden'); res.textContent = 'Sending...';
+        try { if (!w.m) return alert('Wallet not loaded'); const out = await rpc('wallet_send', [w.m, w.a, 0, hex]); res.textContent = 'Signal sent. TXID: ' + (out.txid || ''); }
+        catch (e) { res.textContent = 'Error: ' + e.message; }
+      });
+      $('bgovtally').addEventListener('click', async () => {
+        const hex = $('gtally').value.trim();
+        if (!hex || hex.length !== 64) return alert('Enter 64 hex chars');
+        const res = $('govtallyres'); res.classList.remove('hidden'); res.textContent = 'Loading...';
+        try { const out = await rpc('getgovernancetally', [hex]); res.textContent = 'Weight: ' + (out.total_weight_pct || '0%') + ' | Passed: ' + (out.is_passed ? 'YES' : 'NO'); }
+        catch (e) { res.textContent = 'Error: ' + e.message; }
+      });
+
+      // Block Search
+      $('btn-blk-search').addEventListener('click', async () => {
+        const h = parseInt($('blk-search').value);
+        if (!h || h < 1) return alert('Enter valid block height');
+        try {
+          const blk = await rpc('getblockbyheight', [h]);
+          $('blk-result').classList.remove('hidden');
+          $('blk-h').textContent = blk.height;
+          $('blk-hash').textContent = blk.hash;
+          $('blk-miner').textContent = blk.miner;
+          $('blk-reward').textContent = blk.reward_kot;
+          // Format difficulty as readable number
+          const diffBits = blk.difficulty_bits || 0;
+          $('blk-diff').textContent = diffBits + ' bits';
+          $('blk-time').textContent = new Date(blk.time * 1000).toLocaleString();
+          $('blk-txs').textContent = blk.tx_count;
+          $('blk-prev').textContent = blk.previousblockhash.slice(0, 32) + '...';
+        } catch (e) { alert('Block not found: ' + e.message); }
+      });
+      $('blk-search').addEventListener('keypress', e => { if (e.key === 'Enter') $('btn-blk-search').click(); });
+      $('blk-close').addEventListener('click', () => $('blk-result').classList.add('hidden'));
+
+      // Settings
+      $('b9').addEventListener('click', () => {
+        const box = $('mrev');
+        if (box.classList.contains('hidden')) { box.textContent = w.m || 'Not found'; box.classList.remove('hidden'); }
+        else { box.classList.add('hidden'); }
+      });
+      $('b10').addEventListener('click', async () => {
+        if (!confirm('DELETE WALLET?\n\nBackup your mnemonic first.')) return;
+        if (!confirm('FINAL WARNING. Click OK to delete.')) return;
+        try {
+          await rpc('wallet_reset');
+          if (timer) clearInterval(timer);
+          localStorage.clear(); w = { m: null, a: null, b: 0 };
+          setTimeout(() => location.reload(), 300);
+        } catch (e) { alert('Reset failed: ' + e.message); }
+      });
     }
 
-    // Initialize
-    window.addEventListener('DOMContentLoaded', () => {
-      const savedTheme = localStorage.getItem('knot-theme') || 'dark';
-      document.documentElement.setAttribute('data-theme', savedTheme);
-      document.getElementById('theme-toggle').textContent = savedTheme === 'dark' ? '☾' : '☼';
-      
-      initVisualization();
-      fetchBlockchainData();
-      
-      // Update every 5 seconds
-      setInterval(fetchBlockchainData, 5000);
-    });
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
   </script>
 </body>
+
 </html>

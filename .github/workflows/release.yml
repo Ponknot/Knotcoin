@@ -1,0 +1,104 @@
+name: Release Desktop Wallet
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            rust_target: aarch64-apple-darwin
+            artifact_glob: electron/dist/*.dmg
+            knotcoind_out: electron/binaries/knotcoind-aarch64-apple-darwin
+            npm_script: dist:mac:arm64
+          - os: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+            artifact_glob: electron/dist/*.exe
+            knotcoind_out: electron/binaries/knotcoind-x86_64-pc-windows-msvc.exe
+            npm_script: dist:win:x64
+          - os: ubuntu-latest
+            rust_target: x86_64-unknown-linux-gnu
+            artifact_glob: |
+              electron/dist/*.AppImage
+              electron/dist/*.deb
+            knotcoind_out: electron/binaries/knotcoind-x86_64-unknown-linux-gnu
+            npm_script: dist:linux:x64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Build knotcoind (release)
+        shell: bash
+        run: |
+          cargo build --release --bin knotcoind --target ${{ matrix.rust_target }}
+
+      - name: Smoke test RPC (referral/governance)
+        shell: bash
+        run: |
+          cargo test --test smoke_rpc --target ${{ matrix.rust_target }}
+
+      - name: Copy knotcoind into Electron bundle
+        shell: bash
+        run: |
+          mkdir -p electron/binaries
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp "target/${{ matrix.rust_target }}/release/knotcoind.exe" "${{ matrix.knotcoind_out }}"
+          else
+            cp "target/${{ matrix.rust_target }}/release/knotcoind" "${{ matrix.knotcoind_out }}"
+            chmod +x "${{ matrix.knotcoind_out }}"
+          fi
+
+      - name: Install Electron deps
+        working-directory: electron
+        run: npm install
+
+      - name: Build Electron installers
+        working-directory: electron
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run ${{ matrix.npm_script }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-artifacts
+          path: ${{ matrix.artifact_glob }}
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/**
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,6 +1,6 @@
 [package]
 name        = "knotcoin"
-version     = "1.0.1"
+version     = "1.0.2"
 edition     = "2024"
 authors     = ["Knotcoin Developers"]
 description = "Quantum-resistant proof-of-work cryptocurrency — mainnet"
@@ -43,10 +43,10 @@ argon2        = "0.5"
 aes-gcm       = "0.10"
 rand_chacha   = "0.3"
 rand_core     = "0.6"
+fips204       = "0.4.6"
 
 # Networking
 tokio         = { version = "1", features = ["full"] }
-tokio-socks   = "0.5"
 hyper         = { version = "1", features = ["http1", "server"] }
 hyper-util    = { version = "0.1", features = ["tokio"] }
 rayon         = "1.10"
