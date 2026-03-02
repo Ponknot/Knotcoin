@@ -132,7 +132,7 @@ function setupAutoUpdates() {
     console.log('[updater] Auto-updates disabled (electron-updater not available)');
     return;
   }
-  
+
   // electron-updater uses GitHub Releases when build.publish is set.
   // This keeps user installs "one-time" with incremental updates afterwards.
   autoUpdater.logger = console;
@@ -220,7 +220,7 @@ async function isKnotcoindRunning() {
   // Check if knotcoind is already running by trying to connect to RPC port
   return new Promise((resolve) => {
     const req = http.request({
-      hostname: '127.0.0.1',
+      hostname: 'localhost',
       port: RPC_PORT,
       method: 'POST',
       timeout: 1000
@@ -362,7 +362,7 @@ function startRpcProxy(authToken) {
 
       const upstream = http.request(
         {
-          host: '127.0.0.1',
+          host: 'localhost',
           port: RPC_PORT,
           path: '/rpc',
           method: 'POST',
@@ -395,8 +395,8 @@ function startRpcProxy(authToken) {
     });
   });
 
-  proxyServer.listen(PROXY_PORT, '127.0.0.1', () => {
-    console.log(`[proxy] listening on http://127.0.0.1:${PROXY_PORT}`);
+  proxyServer.listen(PROXY_PORT, 'localhost', () => {
+    console.log(`[proxy] listening on http://localhost:${PROXY_PORT}`);
   });
 }
 
@@ -406,7 +406,7 @@ function createWindow() {
   if (process.platform === 'darwin' && iconExists) {
     try { app.dock.setIcon(nativeImage.createFromPath(iconPath)); } catch (_) { }
   }
-  
+
   const win = new BrowserWindow({
     width: 1100,
     height: 750,
@@ -467,7 +467,7 @@ function createWindow() {
       app.quit();
     }
   });
-  
+
   // Create application menu with Quit option
   if (process.platform === 'darwin') {
     const template = [
@@ -476,7 +476,7 @@ function createWindow() {
         submenu: [
           { role: 'about' },
           { type: 'separator' },
-          { 
+          {
             label: 'Quit Knotcoin',
             accelerator: 'Cmd+Q',
             click: () => {
@@ -521,7 +521,7 @@ function createWindow() {
         ]
       }
     ];
-    
+
     const menu = Menu.buildFromTemplate(template);
     Menu.setApplicationMenu(menu);
   }
