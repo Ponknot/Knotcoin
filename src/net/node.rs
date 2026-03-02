@@ -17,8 +17,8 @@ use crate::node::{ChainDB, db_common::StoredBlock};
 use crate::net::mempool::Mempool;
 use crate::rpc::server::RpcState;
 
-const MAX_INBOUND: usize = 8;
-const MAX_OUTBOUND: usize = 8;
+const MAX_INBOUND: usize = 128;
+const MAX_OUTBOUND: usize = 32;
 const HANDSHAKE_TIMEOUT_SECS: u64 = 10;
 const MAX_HEADERS_PER_MSG: usize = 500;
 const MAX_BLOCKS_PER_MSG: usize = 50;
@@ -148,7 +148,22 @@ impl P2PNode {
         mut cmd_rx: tokio::sync::mpsc::UnboundedReceiver<P2pCommand>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let addr = format!("{P2P_BIND_ADDRESS}:{port}").parse::<SocketAddr>()?;
-        let listener = TcpListener::bind(addr).await?;
+        
+        let socket = socket2::Socket::new(
+            socket2::Domain::for_address(addr),
+            socket2::Type::STREAM,
+            None
+        )?;
+        
+        #[cfg(not(windows))]
+        socket.set_reuse_address(true)?;
+        #[cfg(not(windows))]
+        socket.set_reuse_port(true)?;
+        
+        socket.bind(&addr.into())?;
+        socket.listen(1024)?;
+        
+        let listener = TcpListener::from_std(socket.into())?;
         println!("[p2p] listening on {addr}");
         
         // Spawn the lightweight peer count sync loop

@@ -212,7 +212,9 @@ async fn handle_rpc(state: &RpcState, method: &str, params: &Value) -> Result<Va
                         }
                     }
                     // Difficulty is 2^leading_zeros, minimum 1
-                    let difficulty_human = if leading_zeros == 0 { 1.0 } else { 2f64.powi(leading_zeros as i32) };
+                    let difficulty_human = if leading_zeros == 0 { 1.0 } else { 
+                        (2.0f64).powi(leading_zeros as i32)
+                    };
                     
                     Ok(json!({
                         "hash": hex::encode(block_hash(&block)),
@@ -1183,6 +1185,8 @@ async fn handle_rpc(state: &RpcState, method: &str, params: &Value) -> Result<Va
                             let _ = p2p_tx.send(crate::net::node::P2pCommand::Broadcast(
                                 crate::net::protocol::NetworkMessage::Blocks(vec![block_bytes])
                             ));
+                            // Yield to other tasks after block success
+                            tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
                         }
                     }
 
