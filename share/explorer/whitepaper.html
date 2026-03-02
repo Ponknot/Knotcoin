@@ -443,7 +443,7 @@
     |version |prev_hash |merkle |time |diff |nonce |height |miner |
     | | |root |stamp |target | | |addr |
     +--------+-----------+--------+------+--------+-------+-------+-------+
-    | 4 B | 32 B | 32 B | 8 B | 32 B | 8 B | 8 B | 32 B |
+    | 4 B | 32 B | 32 B | 4 B | 32 B | 8 B | 4 B | 32 B |
     +--------+-----------+--------+------+--------+-------+-------+-------+</div>
   <p class="fig-caption">Fig. 2 &mdash; Block header layout.</p>
 
@@ -583,9 +583,8 @@
 
   <p>ASIC resistance is a medium-term property. A 2 MB scratchpad can be implemented in on-chip SRAM on custom silicon
     &mdash; SRAM latency is 1–5 ns, ten to fifty times faster than DRAM. If Knotcoin achieves valuations that justify
-    ASIC development, on-chip scratchpad caching becomes economically viable. The governance mechanism (Section 11)
-    allows the network to respond by increasing the scratchpad size; at 256 MB or greater, on-chip SRAM becomes
-    infeasible on any current manufacturing node.</p>
+    ASIC development, on-chip scratchpad caching becomes economically viable. Any response that changes scratchpad size
+    would require a coordinated protocol upgrade, not a routine governance parameter change.</p>
 
   <p><strong>The PONC round count is tunable via governance vote</strong> (default 512 rounds, range 256-2048). As hardware improves over time, the network can increase the round count to maintain computational difficulty and preserve ASIC resistance without requiring a hard fork. This ensures the memory-hard properties remain effective across decades of hardware evolution.</p>
 
@@ -763,12 +762,8 @@
   <p>If one party tries to cheat by submitting an old state, the other party has 288 blocks (approximately 4.8 hours) to
     submit the newer, correct state. The chain always accepts the state with the higher sequence number.</p>
 
-  <p>Closing transactions that include a dispute counter-submission are classified as priority transactions. Nodes
-    reserve one slot per block for such transactions regardless of their fee level. This ensures that even during
-    periods of sustained L1 congestion &mdash; when an attacker might attempt to fill every block with spam to prevent a
-    legitimate dispute from landing &mdash; a victim's counter-submission is included within one block. Priority status
-    requires the transaction to reference a valid pending channel close by hash; nodes verify this before granting
-    priority.</p>
+  <p>Priority dispute inclusion is planned for a future release. The protocol will support dispute counter-submissions
+    without requiring special fees, but the reserved-slot mechanism is not part of mainnet at launch.</p>
 
   <p>Channels have a maximum lifetime set at creation. This prevents funds from being locked permanently if a
     participant disappears.</p>
@@ -812,9 +807,8 @@
       receiving a 5% bonus from the other's blocks &mdash; paid by protocol minting, not by either miner. Since any two
       users can do this, it creates no systemic advantage. It is tolerated by design.</li>
 
-    <li><em>Self-referral permitted.</em> A user may create a second wallet and refer themselves, netting 5% extra.
-      Since anyone can do this, it is equivalent to a small universal reward option available to all. It creates no
-      unfair advantage and is not worth preventing.</li>
+    <li><em>Self-referral not permitted.</em> A referrer address must be different from the sender address. This
+      prevents trivial bonus looping and keeps the growth incentive tied to genuine peer-to-peer introductions.</li>
   </ol>
 
   <h3>10.3 Why This Is Not MLM</h3>
@@ -872,8 +866,8 @@
 
   <ul>
     <li><strong>Block size ceiling</strong> (range 50 KB to 500 KB)</li>
-    <li><strong>PONC scratchpad size</strong> (to maintain ASIC resistance as hardware improves)</li>
     <li><strong>PONC round count</strong> (range 256 to 2048 rounds, default 512) &mdash; allows the network to increase computational difficulty as hardware becomes faster, maintaining memory-hard properties</li>
+    <li><strong>Mining thread cap</strong> (range 1 to 8, default 4) &mdash; a fairness control to limit hardware arms races</li>
     <li><strong>Governance cap</strong> (range 5% to 20%, default 10%) &mdash; the maximum voting weight any single entity can hold. Can be lowered to 5% as the network grows to increase decentralization</li>
     <li><strong>State channel dispute window length</strong></li>
     <li><strong>Active mining window length</strong></li>
@@ -901,8 +895,11 @@
 
   <h3>11.4 Who Governs</h3>
 
-  <p>Any node that has produced at least 100 blocks is eligible to vote. Governance weight equals the number of blocks
-    produced in the last year.</p>
+  <p>Governance weight is stored on-chain per account and derived from recorded on-chain contribution, using a
+    logarithmic scale to dampen concentration. For miners, weight increases with total blocks mined. For referrers,
+    weight increases with total referred miners. The function is discrete and simple:
+    <code>100 + 100 * (digits(total) - 1)</code>, so 1&ndash;9 yields 100 bps, 10&ndash;99 yields 200 bps, 100&ndash;999
+    yields 300 bps, and so on. The governance cap (default 10%, tunable 5&ndash;20%) is enforced on-chain.</p>
 
   <p>To mathematically prevent any single industrial mining entity from monopolising the protocol, <strong>a tunable
       governance cap (default 10%, range 5-20%)</strong> is strictly enforced. Even if a massive datacenter controls 40% of the
@@ -911,13 +908,10 @@
     parameters, protecting the decentralised ethos. As the network grows, the cap can be lowered via governance vote to 5%, requiring
     eleven independent entities for consensus, further strengthening decentralization.</p>
 
-  <p>This allocates governance weight by mining output, which is proportional to hardware investment, which is
-    proportional to capital. It is governance weighted by contribution, expressed through hardware rather than coin
-    holdings. It is more fluid than proof-of-stake &mdash; hardware depreciates and can be acquired by new entrants;
-    coins compound passively &mdash; but it is not egalitarian participation. A miner must spend real resources
-    continuously to maintain governance weight, and forfeits it when they stop. A miner who was active three years ago
-    but stopped has zero weight today. A miner who started last month and has been producing blocks consistently has
-    real influence. Government by those who actually show up, in proportion to how much they show up.</p>
+  <p>This allocates governance weight by provable participation. It is not coin-weighted proof-of-stake; it is
+    contribution-weighted proof-of-work plus referrals. Weight grows only through recorded on-chain activity and is
+    bounded by the governance cap, so no single miner or referrer can dominate a vote even if they produce a large share
+    of blocks.</p>
 
 
   <!-- ════════════════════════════════════════════════════════
