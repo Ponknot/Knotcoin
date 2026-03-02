@@ -270,11 +270,17 @@ impl NetworkMessage {
             MsgType::Ping => Some(NetworkMessage::Ping(read_u64(body, &mut off)?)),
             MsgType::Pong => Some(NetworkMessage::Pong(read_u64(body, &mut off)?)),
             MsgType::Response => {
+                if body.len() < 32 {
+                    return None;
+                }
                 let mut r = [0u8; 32];
                 r.copy_from_slice(&body[0..32]);
                 Some(NetworkMessage::Response(r))
             }
             MsgType::Challenge => {
+                if body.len() < 32 {
+                    return None;
+                }
                 let mut c = [0u8; 32];
                 c.copy_from_slice(&body[0..32]);
                 Some(NetworkMessage::Challenge(c))
@@ -284,9 +290,15 @@ impl NetworkMessage {
                 if count > 1000 { return None; }
                 let mut addrs = Vec::with_capacity(count);
                 for _ in 0..count {
+                    if off >= body.len() {
+                        return None;
+                    }
                     let ty = body[off];
                     off += 1;
                     if ty == 0x04 {
+                        if body.len() < off + 4 + 2 {
+                            return None;
+                        }
                         let mut ip = [0u8; 4];
                         ip.copy_from_slice(&body[off..off+4]);
                         off += 4;
@@ -294,6 +306,9 @@ impl NetworkMessage {
                         off += 2;
                         addrs.push(std::net::SocketAddr::new(std::net::IpAddr::V4(ip.into()), port));
                     } else if ty == 0x06 {
+                        if body.len() < off + 16 + 2 {
+                            return None;
+                        }
                         let mut ip = [0u8; 16];
                         ip.copy_from_slice(&body[off..off+16]);
                         off += 16;

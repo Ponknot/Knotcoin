@@ -98,7 +98,7 @@ async fn smoke_rpc_mainnet_features() {
     let tmp = tempfile::tempdir().unwrap();
     let data_dir = tmp.path().join("mainnet");
 
-    let mut child = start_knotcoind(rpc_port, p2p_port, &data_dir);
+    let child = start_knotcoind(rpc_port, p2p_port, &data_dir);
 
     // Ensure child is killed even if the test fails.
     struct KillOnDrop(Child);

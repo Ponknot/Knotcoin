@@ -66,7 +66,7 @@ impl Mempool {
     }
 
     /// Approximate transaction size in bytes
-    fn estimate_tx_size(tx: &StoredTransaction) -> usize {
+    pub fn estimate_tx_size(tx: &StoredTransaction) -> usize {
         let mut base = 1 + 32 + 4 + 1952 + 32 + 8 + 8 + 8 + 8 + 1 + 1 + 4 + 3309;
         if tx.referrer_address.is_some() {
             base += 32;
@@ -166,6 +166,17 @@ impl Mempool {
             .take(max_count)
             .map(|e| e.tx.clone())
             .collect()
+    }
+
+    /// Snapshot of mempool entries sorted by fee priority (highest first)
+    pub fn get_entries(&self, max_count: usize) -> Vec<MempoolEntry> {
+        let mut entries: Vec<&MempoolEntry> = self.entries.values().collect();
+        entries.sort_by(|a, b| {
+            b.fee_per_byte_scaled
+                .cmp(&a.fee_per_byte_scaled)
+                .then_with(|| a.txid.cmp(&b.txid))
+        });
+        entries.into_iter().take(max_count).cloned().collect()
     }
 
     /// Remove transactions that were included in a mined block

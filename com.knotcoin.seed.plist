@@ -7,7 +7,9 @@
     
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/illumoking/Desktop/KNOTCOIN/target/release/knotcoind</string>
+        <string>$HOME/Desktop/KNOTCOIN/target/release/knotcoind</string>
+        <string>--p2p-port=9000</string>
+        <string>--rpc-port=9001</string>
     </array>
     
     <key>RunAtLoad</key>
@@ -22,13 +24,13 @@
     </dict>
     
     <key>StandardOutPath</key>
-    <string>/Users/illumoking/.knotcoin/seed.log</string>
+    <string>$HOME/.knotcoin/seed.log</string>
     
     <key>StandardErrorPath</key>
-    <string>/Users/illumoking/.knotcoin/seed.error.log</string>
+    <string>$HOME/.knotcoin/seed.error.log</string>
     
     <key>WorkingDirectory</key>
-    <string>/Users/illumoking/Desktop/KNOTCOIN</string>
+    <string>$HOME/Desktop/KNOTCOIN</string>
     
     <key>EnvironmentVariables</key>
     <dict>

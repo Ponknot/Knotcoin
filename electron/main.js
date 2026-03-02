@@ -17,9 +17,13 @@ const { spawn } = require('child_process');
 
 // Suppress EPIPE errors when knotcoind exits unexpectedly
 process.on('uncaughtException', (err) => {
-  if (err.code === 'EPIPE' || err.message === 'write EPIPE') return;
-  console.error('[fatal]', err);
-  app.quit();
+  if (err && (err.code === 'EPIPE' || err.message === 'write EPIPE')) return;
+  console.error('[fatal] uncaughtException:', err);
+  // Do not hard-quit; keep app alive and let user restart if needed.
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[fatal] unhandledRejection:', reason);
 });
 
 const RPC_PORT = 9001;
@@ -36,17 +40,31 @@ function resolveTrayIconPath() {
   const candidates = [];
 
   if (packaged) {
+    if (process.platform === 'win32') {
+      candidates.push(path.join(packaged, 'icon.ico'));
+    } else if (process.platform === 'darwin') {
+      candidates.push(path.join(packaged, 'icon.icns'));
+    }
     candidates.push(path.join(packaged, 'icon.png'));
     candidates.push(path.join(packaged, 'explorer', 'icon.png'));
+    candidates.push(path.join(packaged, 'electron.icns'));
   }
 
+  // Dev mode paths
+  candidates.push(path.join(__dirname, 'icon.png'));
+  candidates.push(path.join(__dirname, 'icon.ico'));
+  candidates.push(path.join(__dirname, 'icon.icns'));
   candidates.push(path.join(__dirname, '..', 'src-tauri', 'icons', 'icon.png'));
 
   for (const p of candidates) {
     try {
-      if (fs.existsSync(p)) return p;
+      if (fs.existsSync(p)) {
+        console.log('[main] Using tray icon:', p);
+        return p;
+      }
     } catch (_) { }
   }
+  console.warn('[main] No tray icon found in candidates:', candidates);
   return null;
 }
 
@@ -98,9 +116,9 @@ function setupTray() {
     tray.setContextMenu(buildMenu());
   });
 }
-// Default bootstrap peers - DNS-based for privacy
+// Default bootstrap peers
 // Users can override via KNOTCOIN_BOOTSTRAP_PEERS environment variable
-const DEFAULT_BOOTSTRAP_PEERS = "seed.knotcoin.network:9000";
+const DEFAULT_BOOTSTRAP_PEERS = "seed.knotcoin.network:9000,104.229.254.145:9000";
 
 let knotcoindProcess = null;
 let proxyServer = null;
@@ -411,24 +429,35 @@ function createWindow() {
 
   win.loadFile(path.join(explorerDir, 'index.html'));
 
-  // On macOS hide to tray on close; on other platforms quit.
+  // Ensure window is visible after loading
+  win.once('ready-to-show', () => {
+    win.show();
+    win.focus();
+  });
+
+  // If the renderer crashes, recreate the window instead of quitting.
+  win.webContents.on('render-process-gone', (_event, details) => {
+    console.error('[renderer] gone:', details);
+    if (!isQuitting) {
+      try {
+        setTimeout(() => {
+          if (!isQuitting) createWindow();
+        }, 1000);
+      } catch (e) {
+        console.error('[renderer] restart failed:', e);
+      }
+    }
+  });
+
+  win.webContents.on('did-fail-load', (_e, code, desc) => {
+    console.error('[renderer] did-fail-load:', code, desc);
+  });
+
+  // On macOS quit on close (user expects red dot to close the app).
   win.on('close', (e) => {
     if (isQuitting) return;
-    
-    // On macOS, hide to tray by default (standard macOS behavior)
-    // On Windows/Linux, quit by default (standard behavior)
-    if (process.platform === 'darwin') {
-      e.preventDefault();
-      win.hide();
-      
-      // Show notification that app is still running
-      if (tray) {
-        // App is in tray, user can quit from there
-      }
-    } else {
-      // Windows/Linux: actually quit
-      isQuitting = true;
-    }
+    isQuitting = true;
+    app.quit();
   });
 
   // Cmd+Q / Ctrl+Q always fully quits

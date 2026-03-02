@@ -109,7 +109,7 @@ impl WalletFile {
     /// Decrypts the secret key using the password
     pub fn decrypt_secret_key(&self, password: &str) -> Result<SecretKey, WalletFileError> {
         // Parse salt
-        let salt = SaltString::new(&self.salt).map_err(|_| WalletFileError::Corrupted)?;
+        let salt = SaltString::from_b64(&self.salt).map_err(|_| WalletFileError::Corrupted)?;
 
         // Derive key from password
         let argon2 = Argon2::default();

@@ -331,6 +331,13 @@
       margin-bottom: 12px
     }
 
+    .grid5 {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      margin-bottom: 12px
+    }
+
     .stat-card {
       background: #fff;
       border: 1px solid #e8e8e8;
@@ -658,7 +665,7 @@
               <div><span class="bal-big" id="bal">0.00000000</span><span class="bal-unit">KOT</span></div>
               <div class="mono" style="margin-top:8px;cursor:pointer" id="addr" title="Click to copy">Loading...</div>
             </div>
-            <div class="grid4">
+            <div class="grid5">
               <div class="stat-card">
                 <div class="val" id="h">0</div>
                 <div class="lbl">Block Height</div>
@@ -675,11 +682,19 @@
                 <div class="val" id="dashbal">0</div>
                 <div class="lbl">KOT Balance</div>
               </div>
+              <div class="stat-card">
+                <div class="val" id="ghr">0</div>
+                <div class="lbl">Global Hashrate</div>
+              </div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
               <div class="card">
                 <div class="label">Recent Transactions</div>
                 <div id="txhist" style="font-size:13px;color:#888">No transactions yet</div>
+              </div>
+              <div class="card">
+                <div class="label">Pending Mempool (Top 10)</div>
+                <div id="mempool" style="font-size:12px;color:#888">No pending transactions</div>
               </div>
               <div class="card">
                 <div class="label">Latest Blocks</div>
@@ -835,6 +850,14 @@
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
               <div class="card">
+                <div class="label">Create Proposal (Hash)</div>
+                <textarea id="gtext" placeholder="Write proposal text here (this will be hashed locally)"
+                  style="width:100%;height:90px;margin-bottom:8px"></textarea>
+                <button class="btn btn-s btn-full" id="bgovhash">Generate Proposal Hash</button>
+                <div id="govhashres" class="hidden"
+                  style="margin-top:8px;padding:10px;background:#f5f5f5;border-radius:5px;font-size:12px;word-break:break-all"></div>
+              </div>
+              <div class="card">
                 <div class="label">Signal Vote</div>
                 <input type="text" id="ghex" placeholder="Proposal hash (64 hex chars)">
                 <button class="btn btn-p btn-full" id="bgovsend">Send Signal</button>
@@ -868,7 +891,7 @@
                 </div>
                 <div class="stat-card">
                   <div class="val" id="net-addrs">--</div>
-                  <div class="lbl">Addresses</div>
+                  <div class="lbl">Addresses (balance&gt;0)</div>
                 </div>
                 <div class="stat-card">
                   <div class="val" id="net-hashrate">--</div>
@@ -943,9 +966,9 @@
               <div class="mnemonic-box hidden" id="mrev">--</div>
               <div
                 style="margin-top:12px;padding:10px;background:#fef3c7;border-radius:6px;font-size:11px;color:#92400e">
-                <b>⚠️ Post-Quantum Wallet Notice:</b> Dilithium3 keys cannot be regenerated from mnemonic alone. Your
-                keys are stored in <code>~/.knotcoin/mainnet/wallet_keys.json</code>. <b>Backup this file along with
-                  your mnemonic!</b> If you delete the wallet and re-import the mnemonic, you will get a NEW address.
+                <b>⚠️ Post-Quantum Wallet Notice:</b> Your address is derived deterministically from your 24-word
+                mnemonic. Keep the mnemonic safe &mdash; it is enough to restore the same address. If you also back up
+                <code>~/.knotcoin/mainnet/wallet_keys.json</code>, restores are faster.
               </div>
             </div>
             <div class="card" style="border-color:#fecaca">
@@ -985,13 +1008,30 @@
       return v;
     }
 
+    async function promptAuthToken() {
+      let t = localStorage.getItem('knotcoin_auth') || '';
+      if (!t) t = prompt('Enter RPC Auth Token (from ~/.knotcoin/mainnet/.cookie):') || '';
+      t = (t || '').trim();
+      if (t) {
+        localStorage.setItem('knotcoin_auth', t);
+        auth = t;
+      }
+      return t;
+    }
+
     async function rpc(m, p = [], timeoutMs = 8000) {
       const h = { 'Content-Type': 'application/json' };
       if (auth) h['Authorization'] = 'Bearer ' + auth;
       const ctrl = new AbortController();
       const tid = setTimeout(() => ctrl.abort(), timeoutMs);
       try {
-        const res = await fetch(RPC, { method: 'POST', headers: h, body: JSON.stringify({ jsonrpc: '2.0', method: m, params: p, id: Date.now() }), signal: ctrl.signal });
+        let res = await fetch(RPC, { method: 'POST', headers: h, body: JSON.stringify({ jsonrpc: '2.0', method: m, params: p, id: Date.now() }), signal: ctrl.signal });
+        if (res.status === 401 && !window.__TAURI__) {
+          await promptAuthToken();
+          const h2 = { 'Content-Type': 'application/json' };
+          if (auth) h2['Authorization'] = 'Bearer ' + auth;
+          res = await fetch(RPC, { method: 'POST', headers: h2, body: JSON.stringify({ jsonrpc: '2.0', method: m, params: p, id: Date.now() }), signal: ctrl.signal });
+        }
         if (!res.ok) {
           let emsg = res.statusText;
           try { const ed = await res.json(); if (ed.error) emsg = ed.error.message || JSON.stringify(ed.error); } catch (_) { }
@@ -1022,19 +1062,27 @@
 
     // ── Interactive Network Map ─────────────────────────────────────────
     let netNodes = [], netHover = -1, netAnimFrame = null, netData = null, netTxAnims = [], netLastFetch = 0, netTooltipSetup = false;
+    let netPendingRebuild = true, netLastSize = { w: 0, h: 0 }, netLastDraw = 0;
+    const NET_MAX_FPS = 30;
 
     async function fetchNetData() {
       try {
-        const [dr, tr] = await Promise.allSettled([
+        const [dr, tr, ar] = await Promise.allSettled([
           rpc('get_all_miners', [], 12000),
-          w.a ? rpc('gettransactionhistory', [w.a, 5]) : Promise.resolve({ transactions: [] })
+          w.a ? rpc('gettransactionhistory', [w.a, 5]) : Promise.resolve({ transactions: [] }),
+          rpc('getaddressstats', [], 12000)
         ]);
         if (dr.status === 'fulfilled') {
           netData = dr.value;
+          netPendingRebuild = true;
           const miners = netData.miners || [];
           netStats.miners = miners.length;
           netStats.active = miners.filter(m => m.is_mining).length;
-          netStats.addrs = miners.filter(m => m.blocks_mined > 0 || m.balance_knots > 0).length;
+          if (ar.status === 'fulfilled') {
+            netStats.addrs = ar.value.nonzero_accounts || 0;
+          } else {
+            netStats.addrs = miners.filter(m => (m.balance_knots || 0) > 0).length;
+          }
           set('net-miners', el => el.textContent = netStats.miners);
           set('net-active', el => el.textContent = netStats.active);
           set('net-addrs', el => el.textContent = netStats.addrs);
@@ -1105,8 +1153,12 @@
         ctx.fillText(netData ? 'No miners on network yet' : 'Fetching network data...', W / 2, H / 2);
         return;
       }
-      const nodes = buildNetNodes(W, H);
-      netNodes = nodes;
+      if (netPendingRebuild || netLastSize.w !== W || netLastSize.h !== H || !netNodes.length) {
+        netNodes = buildNetNodes(W, H);
+        netPendingRebuild = false;
+        netLastSize = { w: W, h: H };
+      }
+      const nodes = netNodes;
       const idx = {}; nodes.forEach(n => idx[n.addr] = n);
       const t = Date.now() * 0.001;
 
@@ -1184,14 +1236,18 @@
 
     function netLoop() {
       if (Date.now() - netLastFetch > 5000) { netLastFetch = Date.now(); fetchNetData(); }
-      drawNet();
+      const now = Date.now();
+      if (now - netLastDraw >= (1000 / NET_MAX_FPS)) {
+        netLastDraw = now;
+        drawNet();
+      }
       netAnimFrame = requestAnimationFrame(netLoop);
     }
 
     function startNetMap() {
       if (!netTooltipSetup) { setupNetTooltip(); netTooltipSetup = true; }
       if (netAnimFrame) cancelAnimationFrame(netAnimFrame);
-      netLastFetch = 0; fetchNetData();
+      netLastFetch = 0; netPendingRebuild = true; fetchNetData();
       netAnimFrame = requestAnimationFrame(netLoop);
     }
 
@@ -1314,10 +1370,11 @@
       syncRunning = true;
       try {
         // Fire core RPC calls in parallel
-        const [infoRes, peerRes, msRes] = await Promise.allSettled([
+        const [infoRes, peerRes, msRes, netHrRes] = await Promise.allSettled([
           rpc('getmininginfo'),
           rpc('getpeerinfo'),
-          rpc('get_mining_status')
+          rpc('get_mining_status'),
+          rpc('getnetworkhashrate')
         ]);
 
         if (infoRes.status === 'fulfilled') { c.h = infoRes.value.blocks || 0; c.mp = infoRes.value.mempool || 0; }
@@ -1333,13 +1390,12 @@
           const hr = ms.hashrate || 0;
           set('mhr', el => el.textContent = hr >= 1000000 ? (hr / 1000000).toFixed(2) + ' MH/s' : hr >= 1000 ? (hr / 1000).toFixed(1) + ' KH/s' : hr.toFixed(0) + ' H/s');
           netStats.netHashrate = hr;
-          set('net-hashrate', el => el.textContent = hr >= 1000000 ? (hr / 1000000).toFixed(2) + 'M' : hr >= 1000 ? (hr / 1000).toFixed(1) + 'K' : hr.toFixed(0));
           const up = ms.uptime_seconds || 0;
           set('mut', el => el.textContent = up > 0 ? formatUptime(up) : '--');
           set('maddr', el => el.textContent = mi.act && w.a ? 'Mining to ' + w.a.slice(0, 16) + '...' : '');
-          // Update difficulty from latest block
+          // Update difficulty from latest block (human-readable bits)
           const diff = ms.difficulty_bits || 0;
-          set('mdiff', el => el.textContent = diff > 0 ? diff + ' bits' : '--');
+          set('mdiff', el => el.textContent = diff > 0 ? ('Difficulty: ' + diff + ' bits') : '--');
           // Update mining log
           if (mi.act && hr > 0) {
             const logEl = $('mlog');
@@ -1354,13 +1410,20 @@
           }
         }
 
+        if (netHrRes.status === 'fulfilled') {
+          const nh = netHrRes.value.hashrate || 0;
+          set('ghr', el => el.textContent = nh >= 1000000 ? (nh / 1000000).toFixed(2) + 'M H/s' : nh >= 1000 ? (nh / 1000).toFixed(1) + 'K H/s' : nh.toFixed(0) + ' H/s');
+          set('net-hashrate', el => el.textContent = nh >= 1000000 ? (nh / 1000000).toFixed(2) + 'M' : nh >= 1000 ? (nh / 1000).toFixed(1) + 'K' : nh.toFixed(0));
+        }
+
         if (w.a) {
           // Fire wallet-specific calls in parallel
-          const [balRes, rfRes, giRes, txRes] = await Promise.allSettled([
+          const [balRes, rfRes, giRes, txRes, mpRes] = await Promise.allSettled([
             rpc('getbalance', [w.a]),
             rpc('getreferralinfo', [w.a]),
             rpc('getgovernanceinfo', [w.a]),
-            rpc('gettransactionhistory', [w.a, 15])
+            rpc('gettransactionhistory', [w.a, 15]),
+            rpc('getmempool', [])
           ]);
           if (balRes.status === 'fulfilled') { w.b = balRes.value.balance_knots || 0; }
           if (rfRes.status === 'fulfilled') {
@@ -1413,6 +1476,20 @@
                 const label = tx.type === 'sent' ? 'Sent' : tx.type === 'received' ? 'Received' : 'Mined';
                 return '<div class="tx-row ' + cls + '"><span class="tx-type">' + label + '</span><span>' + tx.amount_kot + ' KOT</span><span style="color:#aaa">#' + tx.block_height + '</span></div>';
               }).join('');
+            });
+          }
+          if (mpRes.status === 'fulfilled') {
+            const mp = mpRes.value || [];
+            set('mempool', el => {
+              if (!mp.length) { el.textContent = 'No pending transactions'; return; }
+              const rows = mp.slice(0, 10).map(t => {
+                const amt = (t.amount_kot || '').toString();
+                const fee = (t.fee_knots || 0).toString();
+                const to = (t.recipient || '').toString();
+                const from = (t.sender || '').toString();
+                return '<div style="margin-bottom:4px">' + amt + ' KOT · fee ' + fee + ' · ' + from.slice(0,6) + '…' + from.slice(-4) + ' → ' + to.slice(0,6) + '…' + to.slice(-4) + '</div>';
+              });
+              el.innerHTML = rows.join('');
             });
           }
           maybeRegisterReferral();
@@ -1519,6 +1596,9 @@
           if (inv) { for (let i = 0; i < 10; i++) { try { auth = await inv('get_rpc_auth_token'); if (auth) break; } catch (e) { } await new Promise(r => setTimeout(r, 500)); } }
         } catch (e) { }
       }
+      if (!window.__TAURI__ && !auth) {
+        auth = (localStorage.getItem('knotcoin_auth') || '').trim();
+      }
       // Poll for RPC with visual feedback, don't freeze UI
       let att = 0;
       while (att < 60) {
@@ -1609,7 +1689,11 @@
           await maybeRegisterReferral();
           const threads = parseInt($('mthreads').value) || 4;
           mi.threads = Math.max(1, Math.min(8, threads));
+          if (!confirm('Start mining with ' + mi.threads + ' thread(s)?')) return;
           const rf = localStorage.getItem('knotcoin_referrer');
+          if (rf && w.a && rf.toUpperCase().startsWith('KOT') && rf.replace(/^KOT1?/i, '') === w.a.replace(/^KOT1?/i, '')) {
+            return alert('Self-referral is not permitted');
+          }
           const args = rf ? [w.m, mi.threads, rf] : [w.m, mi.threads];
           await rpc('start_mining', args); mi.act = true;
           $('b8').textContent = 'Stop Mining'; $('b8').className = 'btn btn-d btn-full';
@@ -1660,6 +1744,23 @@
         const box = $('mrev');
         if (box.classList.contains('hidden')) { box.textContent = w.m || 'Not found'; box.classList.remove('hidden'); }
         else { box.classList.add('hidden'); }
+      });
+      // Governance: generate proposal hash from text
+      $('bgovhash').addEventListener('click', async () => {
+        const txt = ($('gtext').value || '').trim();
+        if (!txt) return alert('Enter proposal text');
+        try {
+          const enc = new TextEncoder().encode(txt);
+          const digest = await crypto.subtle.digest('SHA-256', enc);
+          const hex = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+          $('ghex').value = hex;
+          $('gtally').value = hex;
+          const box = $('govhashres');
+          box.textContent = 'Proposal hash: ' + hex;
+          box.classList.remove('hidden');
+        } catch (e) {
+          alert('Hash failed: ' + (e.message || e));
+        }
       });
       $('b10').addEventListener('click', async () => {
         if (!confirm('DELETE WALLET?\n\nBackup your mnemonic first.')) return;

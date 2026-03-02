@@ -10,15 +10,15 @@ use serde_json;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
 
-use crate::config::P2P_BIND_ADDRESS;
+use crate::config::{default_data_dir, p2p_bind_address};
 use crate::consensus::state::{apply_block, block_hash};
 use crate::net::protocol::{FramedStream, NetworkMessage};
 use crate::node::{ChainDB, db_common::StoredBlock};
 use crate::net::mempool::Mempool;
 use crate::rpc::server::RpcState;
 
-const MAX_INBOUND: usize = 8;
-const MAX_OUTBOUND: usize = 8;
+const MAX_INBOUND: usize = 128; // Increased to allow seed nodes to accept more peers
+const MAX_OUTBOUND: usize = 32;
 const HANDSHAKE_TIMEOUT_SECS: u64 = 10;
 const MAX_HEADERS_PER_MSG: usize = 500;
 const MAX_BLOCKS_PER_MSG: usize = 50;
@@ -27,13 +27,13 @@ const OUTBOUND_CONNECT_TIMEOUT_SECS: u64 = 3;
 /// Bootstrap seed nodes with automatic phase-out based on blockchain height
 /// Can be overridden with KNOTCOIN_BOOTSTRAP_PEERS environment variable
 const BOOTSTRAP_SEEDS_PHASE1: &[&str] = &[
-    "[2401:4900:8834:deb3:71e1:5bd6:e430:e0ec]:9000",  // Founder's seed node (IPv6)
-    "223.185.60.199:9000",  // Founder's seed node (IPv4)
+    "seed.knotcoin.network:9000",           // DNS seed (recommended)
+    "104.229.254.145:9000",                 // Community seed node (volunteer)
 ];
 
 const PERMANENT_SEEDS: &[&str] = &[
-    "[2401:4900:8834:deb3:71e1:5bd6:e430:e0ec]:9000",  // Founder's seed node (IPv6)
-    "223.185.60.199:9000",  // Founder's seed node (IPv4)
+    "seed.knotcoin.network:9000",           // DNS seed (recommended)
+    "104.229.254.145:9000",                 // Community seed node (volunteer)
 ];
 
 /// Load bootstrap peers from environment variable or use defaults
@@ -55,6 +55,67 @@ fn dev_allow_local() -> bool {
         .unwrap_or(false)
 }
 
+/// Optional advertised addresses for bootstrap nodes.
+/// Comma-separated list of socket addresses, e.g. "203.0.113.5:9000,[::1]:9000"
+fn load_advertised_addrs() -> Vec<SocketAddr> {
+    if let Ok(addrs_str) = std::env::var("KNOTCOIN_ADVERTISE_ADDRS") {
+        addrs_str
+            .split(',')
+            .filter_map(|s| s.trim().parse::<SocketAddr>().ok())
+            .collect()
+    } else {
+        Vec::new()
+    }
+}
+
+/// Load optional seed list from a text file (one host:port per line, # comments)
+fn load_seedlist_file(path: &std::path::Path) -> Vec<String> {
+    let mut out = Vec::new();
+    let raw = match fs::read_to_string(path) {
+        Ok(s) => s,
+        Err(_) => return out,
+    };
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        out.push(trimmed.to_string());
+    }
+    out
+}
+
+fn load_seedlist() -> Vec<String> {
+    if let Ok(path) = std::env::var("KNOTCOIN_SEEDLIST") {
+        let p = std::path::PathBuf::from(path);
+        let list = load_seedlist_file(&p);
+        if !list.is_empty() {
+            return list;
+        }
+    }
+    let path = data_dir_path().join("seedlist.txt");
+    ensure_seedlist_template(&path);
+    load_seedlist_file(&path)
+}
+
+fn ensure_seedlist_template(path: &std::path::Path) {
+    if path.exists() {
+        return;
+    }
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let template = [
+        "# Knotcoin seed list",
+        "# One host:port per line. Lines starting with # are ignored.",
+        "# Add community-run public nodes here to improve bootstrap reliability.",
+        "# Example:",
+        "# 203.0.113.10:9000",
+        "",
+    ].join("\n");
+    let _ = fs::write(path, template);
+}
+
 /// Select seed nodes based on blockchain height
 fn get_bootstrap_peers(current_height: u32) -> Vec<String> {
     // Priority 1: Environment variable (for privacy)
@@ -63,12 +124,29 @@ fn get_bootstrap_peers(current_height: u32) -> Vec<String> {
         return env_peers;
     }
     
-    // Priority 2: Default seeds based on network maturity
+    // Priority 2: Optional seed list file (user/community provided)
+    let mut peers = load_seedlist();
+
+    // Priority 3: Default seeds based on network maturity
     if current_height < 5000 {
-        BOOTSTRAP_SEEDS_PHASE1.iter().map(|s| s.to_string()).collect()
+        peers.extend(BOOTSTRAP_SEEDS_PHASE1.iter().map(|s| s.to_string()));
     } else {
-        PERMANENT_SEEDS.iter().map(|s| s.to_string()).collect()
+        peers.extend(PERMANENT_SEEDS.iter().map(|s| s.to_string()));
     }
+
+    // Priority 4: Previously known peers (best-effort fallback)
+    for a in load_known_peers() {
+        peers.push(a.to_string());
+    }
+
+    // Randomize to avoid a fixed order
+    if peers.len() > 1 {
+        use rand::seq::SliceRandom;
+        let mut rng = rand::thread_rng();
+        peers.shuffle(&mut rng);
+    }
+
+    peers
 }
 
 fn is_private_ip(addr: SocketAddr) -> bool {
@@ -117,7 +195,15 @@ pub enum HandshakeStage {
 impl P2PNode {
     pub fn new_from_rpc_state(s: Arc<RpcState>) -> Self {
         let (broadcast_tx, _) = tokio::sync::broadcast::channel(256);
-        let known = load_known_peers();
+        let mut known = load_known_peers();
+        let advertised = load_advertised_addrs();
+        if !advertised.is_empty() {
+            for a in advertised {
+                if dev_allow_local() || !is_private_ip(a) {
+                    known.insert(a);
+                }
+            }
+        }
         P2PNode {
             peers: Arc::new(Mutex::new(HashMap::new())),
             known_addrs: Arc::new(Mutex::new(known)),
@@ -147,8 +233,29 @@ impl P2PNode {
         port: u16,
         mut cmd_rx: tokio::sync::mpsc::UnboundedReceiver<P2pCommand>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let addr = format!("{P2P_BIND_ADDRESS}:{port}").parse::<SocketAddr>()?;
-        let listener = TcpListener::bind(addr).await?;
+        let addr = format!("{}:{port}", p2p_bind_address()).parse::<SocketAddr>()?;
+        
+        let socket = socket2::Socket::new(
+            match addr {
+                SocketAddr::V4(_) => socket2::Domain::IPV4,
+                SocketAddr::V6(_) => socket2::Domain::IPV6,
+            },
+            socket2::Type::STREAM,
+            Some(socket2::Protocol::TCP),
+        )?;
+
+        // Enable port and address reuse to prevent "os error 10048" on quick restarts
+        socket.set_reuse_address(true)?;
+        #[cfg(all(unix, not(target_os = "solaris"), not(target_os = "illumos")))]
+        socket.set_reuse_port(true)?;
+
+        socket.bind(&addr.into())?;
+        socket.listen(1024)?;
+
+        let std_listener: std::net::TcpListener = socket.into();
+        std_listener.set_nonblocking(true)?;
+        let listener = TcpListener::from_std(std_listener)?;
+        
         println!("[p2p] listening on {addr}");
         
         // Spawn the lightweight peer count sync loop
@@ -274,8 +381,21 @@ impl P2PNode {
         let mut connected_count = 0u32;
 
         for (idx, seed) in bootstrap_peers.iter().enumerate() {
-            // ── Plain-IP path ─────────────────────────────────────────────
+            let mut addrs: Vec<SocketAddr> = Vec::new();
+
             if let Ok(addr) = seed.parse::<SocketAddr>() {
+                addrs.push(addr);
+            } else if let Ok(resolved) = tokio::net::lookup_host(seed).await {
+                addrs.extend(resolved);
+            }
+
+            if addrs.is_empty() {
+                println!("[p2p] Seed #{}: could not resolve {}", idx + 1, seed);
+                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                continue;
+            }
+
+            for addr in addrs {
                 // Remember the seed for future runs.
                 {
                     let mut known = self.known_addrs.lock().await;
@@ -285,7 +405,8 @@ impl P2PNode {
                     Ok(_) => {
                         println!("[p2p] ✓ Seed #{}: connected to {}", idx + 1, addr);
                         connected_count += 1;
-                    },
+                        break; // stop after first successful address for this seed
+                    }
                     Err(e) => {
                         if !e.to_string().contains("refused") && !e.to_string().contains("10061") {
                             println!("[p2p] Seed #{}: {e}", idx + 1);
@@ -705,8 +826,7 @@ fn data_dir_path() -> PathBuf {
     if let Ok(d) = std::env::var("KNOTCOIN_DATA_DIR") {
         return PathBuf::from(d);
     }
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(home).join(crate::config::DATA_DIR)
+    default_data_dir()
 }
 
 fn known_peers_file() -> PathBuf {

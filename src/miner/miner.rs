@@ -332,7 +332,7 @@ mod tests {
     #[test]
     fn test_mine_block1() {
         let db = tmp();
-        let mut pool = Mempool::new();
+        let pool = Mempool::new();
         apply_block(&db, &create_genesis_block()).unwrap();
 
         let stop = std::sync::atomic::AtomicBool::new(false);

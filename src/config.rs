@@ -15,9 +15,9 @@ pub const RPC_BIND_ADDRESS: &str = "127.0.0.1";
 /// RPC authentication cookie filename
 pub const RPC_COOKIE_FILE: &str = ".cookie";
 
-/// Bind address for P2P — set to 0.0.0.0 to allow peer discovery (Public Launch)
-/// For anonymous genesis mining, set to 127.0.0.1 to disable external connections
-pub const P2P_BIND_ADDRESS: &str = "0.0.0.0";
+/// Bind address for P2P — default 0.0.0.0 to allow peer discovery (Public Launch)
+/// For anonymous mining, set KNOTCOIN_P2P_BIND=127.0.0.1 to disable external connections
+pub const P2P_BIND_ADDRESS_DEFAULT: &str = "0.0.0.0";
 
 /// Data directory names
 /// Data directory name
@@ -31,11 +31,46 @@ pub struct NetworkConfig {
 
 impl NetworkConfig {
     pub fn mainnet() -> Self {
-        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        let home = resolve_home_dir();
         NetworkConfig {
             p2p_port: P2P_PORT,
             rpc_port: RPC_PORT,
             data_dir: format!("{}/{}", home, DATA_DIR),
         }
     }
+}
+
+pub fn p2p_bind_address() -> String {
+    let v = std::env::var("KNOTCOIN_P2P_BIND").unwrap_or_else(|_| P2P_BIND_ADDRESS_DEFAULT.to_string());
+    if v.trim().is_empty() {
+        P2P_BIND_ADDRESS_DEFAULT.to_string()
+    } else {
+        v
+    }
+}
+
+pub fn default_data_dir() -> std::path::PathBuf {
+    std::path::PathBuf::from(resolve_home_dir()).join(DATA_DIR)
+}
+
+fn resolve_home_dir() -> String {
+    if let Ok(home) = std::env::var("HOME") {
+        if !home.trim().is_empty() {
+            return home;
+        }
+    }
+    #[cfg(windows)]
+    {
+        if let Ok(home) = std::env::var("USERPROFILE") {
+            if !home.trim().is_empty() {
+                return home;
+            }
+        }
+        let drive = std::env::var("HOMEDRIVE").unwrap_or_default();
+        let path = std::env::var("HOMEPATH").unwrap_or_default();
+        if !drive.is_empty() || !path.is_empty() {
+            return format!("{drive}{path}");
+        }
+    }
+    ".".to_string()
 }

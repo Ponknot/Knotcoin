@@ -1,6 +1,6 @@
 [package]
 name        = "knotcoin"
-version     = "1.0.2"
+version     = "1.0.3"
 edition     = "2024"
 authors     = ["Knotcoin Developers"]
 description = "Quantum-resistant proof-of-work cryptocurrency — mainnet"
@@ -51,6 +51,7 @@ hyper         = { version = "1", features = ["http1", "server"] }
 hyper-util    = { version = "0.1", features = ["tokio"] }
 rayon         = "1.10"
 http-body-util = "0.1"
+socket2 = "0.6.2"
 
 [build-dependencies]
 cxx-build = "1"

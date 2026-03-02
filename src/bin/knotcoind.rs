@@ -44,7 +44,7 @@ fn banner() {
     println!();
     println!(
         "{}",
-        "                    v1.0.2 MAINNET                       "
+        "                    v1.0.3 MAINNET                       "
             .bright_green()
             .on_black()
             .bold()
@@ -148,6 +148,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         p2p_tx,
         auth_token,
         data_dir: config.data_dir.clone(),
+        p2p_port: config.p2p_port,
         mining_active: AtomicBool::new(false),
         mining_blocks_found: Arc::new(std::sync::atomic::AtomicU64::new(0)),
         mining_start_time: Arc::new(std::sync::atomic::AtomicU64::new(0)),
@@ -187,7 +188,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!(
         "{} P2P server listening on {}:{}",
         "[p2p] ".bright_green().bold(),
-        knotcoin::config::P2P_BIND_ADDRESS,
+        knotcoin::config::p2p_bind_address(),
         config.p2p_port
     );
     println!();

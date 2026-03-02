@@ -136,6 +136,17 @@ class KnotcoinApp {
         }
     }
 
+    async promptAuthToken() {
+        let t = localStorage.getItem('knotcoin_auth') || '';
+        if (!t) t = prompt('Enter RPC Auth Token (from ~/.knotcoin/mainnet/.cookie):') || '';
+        t = (t || '').trim();
+        if (t) {
+            localStorage.setItem('knotcoin_auth', t);
+            this.state.authToken = t;
+        }
+        return t;
+    }
+
     async rpc(method, params = []) {
         const url = 'http://localhost:9001/rpc';
         const headers = { 'Content-Type': 'application/json' };
@@ -146,7 +157,7 @@ class KnotcoinApp {
         }
 
         try {
-            const response = await fetch(url, {
+            let response = await fetch(url, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({
@@ -156,6 +167,24 @@ class KnotcoinApp {
                     id: Date.now()
                 })
             });
+
+            if (response.status === 401 && !this.isTauri) {
+                await this.promptAuthToken();
+                const headers2 = { 'Content-Type': 'application/json' };
+                if (this.state.authToken) {
+                    headers2['Authorization'] = `Bearer ${this.state.authToken}`;
+                }
+                response = await fetch(url, {
+                    method: 'POST',
+                    headers: headers2,
+                    body: JSON.stringify({
+                        jsonrpc: '2.0',
+                        method,
+                        params,
+                        id: Date.now()
+                    })
+                });
+            }
 
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);

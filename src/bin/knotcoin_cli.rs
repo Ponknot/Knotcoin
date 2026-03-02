@@ -6,10 +6,8 @@
 use std::env;
 
 use knotcoin::crypto::keys::{
-    decode_address_string, derive_account_seed, derive_address, derive_master_seed,
-    encode_address_string, generate_mnemonic,
+    decode_address_string, derive_address, encode_address_string, generate_mnemonic,
 };
-use knotcoin::crypto::dilithium::PublicKey;
 
 use colored::*;
 
@@ -148,13 +146,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Handle local commands first
     if method == "createwallet" {
         let mnemonic = generate_mnemonic();
-        let master = derive_master_seed(&mnemonic, "");
-        let account = derive_account_seed(&master, 0);
-
-        // We derive a mock pubkey from the first 32 bytes of account seed for this version
-        let mut pk_bytes = [0u8; 1952];
-        pk_bytes[0..32].copy_from_slice(&account[0..32]);
-        let pk = PublicKey(pk_bytes);
+        let (pk, _sk) = knotcoin::crypto::keys::derive_keypair_from_mnemonic(&mnemonic);
         let addr = derive_address(&pk);
         let kot1 = encode_address_string(&addr);
 

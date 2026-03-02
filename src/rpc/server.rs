@@ -22,6 +22,57 @@ use crate::net::mempool::Mempool;
 use crate::net::node::P2pCommand;
 use crate::node::ChainDB;
 
+fn load_known_peers_from_disk(data_dir: &str) -> Vec<String> {
+    let path = std::path::Path::new(data_dir).join("peers.json");
+    let raw = match std::fs::read_to_string(path) {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+    serde_json::from_str::<Vec<String>>(&raw).unwrap_or_default()
+}
+
+fn parse_advertised_addrs() -> Vec<SocketAddr> {
+    std::env::var("KNOTCOIN_ADVERTISE_ADDRS")
+        .ok()
+        .map(|s| {
+            s.split(',')
+                .filter_map(|p| p.trim().parse::<SocketAddr>().ok())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn is_private_ip(addr: &SocketAddr) -> bool {
+    let ip = addr.ip();
+    if ip.is_loopback() {
+        return true;
+    }
+    match ip {
+        std::net::IpAddr::V4(v4) => v4.is_private(),
+        std::net::IpAddr::V6(v6) => (v6.segments()[0] & 0xfe00) == 0xfc00,
+    }
+}
+
+fn estimate_network_hashrate_from_target(target_bytes: &[u8; 32]) -> u64 {
+    use primitive_types::U256;
+
+    let mut target = U256::from_big_endian(target_bytes);
+    if target.is_zero() {
+        target = U256::one();
+    }
+
+    let expected_hashes = match target.checked_add(U256::one()) {
+        Some(t_plus_one) => U256::MAX / t_plus_one,
+        None => U256::zero(),
+    };
+    let hps = expected_hashes / U256::from(60u64);
+    if hps > U256::from(u64::MAX) {
+        u64::MAX
+    } else {
+        hps.low_u64()
+    }
+}
+
 type WalletKeyCache = std::collections::HashMap<
     [u8; 32],
     (
@@ -37,6 +88,7 @@ pub struct RpcState {
     pub p2p_tx: tokio::sync::mpsc::UnboundedSender<P2pCommand>,
     pub auth_token: String,
     pub data_dir: String,
+    pub p2p_port: u16,
     pub mining_active: AtomicBool,
     pub mining_blocks_found: Arc<AtomicU64>,
     pub mining_start_time: Arc<AtomicU64>,
@@ -100,6 +152,8 @@ fn load_wallet_keys_from_disk(data_dir: &str, mnemonic_hash: &[u8; 32]) -> Optio
 
 fn save_wallet_keys_to_disk(data_dir: &str, mnemonic_hash: &[u8; 32], pk: &crate::crypto::dilithium::PublicKey, sk: &crate::crypto::dilithium::SecretKey) {
     let path = wallet_keys_file(data_dir);
+    let backup_path = path.with_extension("json.backup");
+    let tmp_path = path.with_extension("json.tmp");
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
@@ -109,7 +163,28 @@ fn save_wallet_keys_to_disk(data_dir: &str, mnemonic_hash: &[u8; 32], pk: &crate
         secret_key: sk.0.to_vec(),
     };
     if let Ok(s) = serde_json::to_string_pretty(&stored) {
-        let _ = std::fs::write(path, s);
+        if std::fs::write(&tmp_path, s).is_ok() {
+            // Best-effort backup of the previous file to prevent wallet loss on corruption.
+            if path.exists() {
+                let _ = std::fs::copy(&path, &backup_path);
+            }
+            let _ = std::fs::rename(&tmp_path, &path);
+
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                if let Ok(meta) = std::fs::metadata(&path) {
+                    let mut perms = meta.permissions();
+                    perms.set_mode(0o600);
+                    let _ = std::fs::set_permissions(&path, perms);
+                }
+                if let Ok(meta) = std::fs::metadata(&backup_path) {
+                    let mut perms = meta.permissions();
+                    perms.set_mode(0o600);
+                    let _ = std::fs::set_permissions(&backup_path, perms);
+                }
+            }
+        }
     }
 }
 
@@ -194,10 +269,8 @@ async fn handle_rpc(state: &RpcState, method: &str, params: &Value) -> Result<Va
             };
             match state.db.get_block(&hash) {
                 Ok(Some(block)) => {
-                    // Calculate block reward (10 KOT base, halving every 210000 blocks)
-                    let halvings = h / 210000;
-                    let base_reward = 10_0000_0000u64; // 10 KOT in knots
-                    let reward = base_reward >> halvings;
+                    // Calculate block reward from consensus schedule
+                    let reward = crate::consensus::chain::calculate_block_reward(h as u64);
                     
                     // Calculate human-readable difficulty
                     // Count leading zero bits in target (more zeros = harder)
@@ -358,6 +431,125 @@ async fn handle_rpc(state: &RpcState, method: &str, params: &Value) -> Result<Va
             Ok(json!(ids))
         }
 
+        "getmempool" => {
+            let limit = params.get(0).and_then(|v| v.as_u64()).unwrap_or(100).min(1000) as usize;
+            let pool = state.mempool.lock().await;
+            let entries = pool.get_entries(limit);
+            let out: Vec<Value> = entries.into_iter().map(|e| {
+                let size = crate::net::mempool::Mempool::estimate_tx_size(&e.tx) as u64;
+                json!({
+                    "txid": hex::encode(e.txid),
+                    "sender": crate::crypto::keys::encode_address_string(&e.tx.sender_address),
+                    "recipient": crate::crypto::keys::encode_address_string(&e.tx.recipient_address),
+                    "amount_knots": e.tx.amount,
+                    "amount_kot": format!("{:.8}", e.tx.amount as f64 / 1e8),
+                    "fee": e.tx.fee,
+                    "nonce": e.tx.nonce,
+                    "size": size,
+                    "fee_per_byte": e.fee_per_byte_scaled as f64 / 10000.0
+                })
+            }).collect();
+            Ok(json!({ "transactions": out }))
+        }
+
+        "getrecentblocks" => {
+            let count = params.get(0).and_then(|v| v.as_u64()).unwrap_or(20).min(200) as u32;
+            let height = state.db.get_chain_height().unwrap_or(0);
+            let start = height.saturating_sub(count.saturating_sub(1));
+            let mut blocks = Vec::new();
+            for h in (start..=height).rev() {
+                if let Ok(Some(hash)) = state.db.get_block_hash_by_height(h) {
+                    if let Ok(Some(block)) = state.db.get_block(&hash) {
+                        let reward = crate::consensus::chain::calculate_block_reward(h as u64);
+                        blocks.push(json!({
+                            "hash": hex::encode(hash),
+                            "height": h,
+                            "time": u32::from_le_bytes(block.timestamp),
+                            "miner": crate::crypto::keys::encode_address_string(&block.miner_address),
+                            "tx_count": block.tx_data.len(),
+                            "reward_knots": reward,
+                            "reward_kot": format!("{:.8}", reward as f64 / 1e8),
+                        }));
+                    }
+                }
+            }
+            Ok(json!({ "blocks": blocks }))
+        }
+
+        "getstatus" => {
+            let height = state.db.get_chain_height().unwrap_or(0);
+            let pool_size = state.mempool.lock().await.size();
+            let connected = state.connected_peers.load(Ordering::Relaxed);
+            let known = load_known_peers_from_disk(&state.data_dir);
+            let advertised = parse_advertised_addrs();
+
+            let tip_hash = state.db.get_tip().ok().flatten();
+            let tip_block = tip_hash.and_then(|h| state.db.get_block(&h).ok().flatten());
+            let difficulty = tip_block
+                .as_ref()
+                .map(|b| hex::encode(b.difficulty_target))
+                .unwrap_or_else(|| "f".repeat(64));
+
+            let mining_active = state.mining_active.load(Ordering::SeqCst);
+            let blocks_found = state.mining_blocks_found.load(Ordering::SeqCst);
+            let start = state.mining_start_time.load(Ordering::SeqCst);
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+            let uptime = if mining_active && start > 0 { now - start } else { 0 };
+            let nonces = state.mining_nonces_total.load(Ordering::SeqCst);
+            let hashrate = if uptime > 0 { nonces / uptime } else { 0 };
+
+            let params = state.db.get_governance_params().unwrap_or_default();
+
+            Ok(json!({
+                "chain_height": height,
+                "tip": tip_hash.map(hex::encode),
+                "mempool": pool_size,
+                "difficulty": difficulty,
+                "peers_connected": connected,
+                "known_peers": known.len(),
+                "mining_active": mining_active,
+                "mining_blocks_found": blocks_found,
+                "mining_hashrate": hashrate,
+                "mining_threads": params.mining_threads,
+                "ponc_rounds": params.ponc_rounds,
+                "p2p_port": state.p2p_port,
+                "advertised_addrs": advertised.iter().map(|a| a.to_string()).collect::<Vec<_>>(),
+            }))
+        }
+
+        "getbootstrapcheck" => {
+            let connected = state.connected_peers.load(Ordering::Relaxed);
+            let known = load_known_peers_from_disk(&state.data_dir);
+            let advertised = parse_advertised_addrs();
+
+            let mut warnings = Vec::new();
+            if crate::config::p2p_bind_address() == "127.0.0.1" {
+                warnings.push("P2P bind address is 127.0.0.1; node is not reachable from the internet".to_string());
+            }
+            if advertised.is_empty() {
+                warnings.push("KNOTCOIN_ADVERTISE_ADDRS is not set; peers may not learn your public address".to_string());
+            } else if advertised.iter().any(is_private_ip) {
+                warnings.push("Advertised address is private or loopback; peers on the internet cannot reach it".to_string());
+            }
+            if connected == 0 {
+                warnings.push("No connected peers yet; check port forwarding and firewall".to_string());
+            }
+            if known.is_empty() {
+                warnings.push("No known peers on disk; bootstrap may be failing".to_string());
+            }
+
+            Ok(json!({
+                "p2p_port": state.p2p_port,
+                "p2p_bind": crate::config::p2p_bind_address(),
+                "connected_peers": connected,
+                "known_peers": known.len(),
+                "advertised_addrs": advertised.iter().map(|a| a.to_string()).collect::<Vec<_>>(),
+                "warnings": warnings,
+                "notes": "This check cannot verify NAT/port-forward reachability; test externally with netcat or a port checker."
+            }))
+        }
+
         "sendrawtransaction" => {
             let hex_str = params.get(0).and_then(|v| v.as_str()).ok_or((-32602, "hex required".to_string()))?;
             let raw = hex::decode(hex_str).map_err(|_| (-32602, "invalid hex".to_string()))?;
@@ -395,8 +587,6 @@ async fn handle_rpc(state: &RpcState, method: &str, params: &Value) -> Result<Va
 
             // 2.1 Allow send-to-self for nonce bumping / canceling stuck TX (like ETH)
             // Self-transactions are valid - they just update nonce and pay fee
-            let is_self_tx = sender_addr == recipient_addr;
-
             // 3. Get Nonce & Balance
             let acc = state.db.get_account(&sender_addr).map_err(|e| (-32603, format!("db error: {e}")))?;
             let amount_knots = (amount_kot * 1e8) as u64;
@@ -801,6 +991,7 @@ async fn handle_rpc(state: &RpcState, method: &str, params: &Value) -> Result<Va
             let chain_height = state.db.get_chain_height().unwrap_or(0);
             let mut miner_blocks: std::collections::HashMap<[u8; 32], u64> = std::collections::HashMap::new();
             let mut miner_last_height: std::collections::HashMap<[u8; 32], u32> = std::collections::HashMap::new();
+            let mut miner_rewards: std::collections::HashMap<[u8; 32], u64> = std::collections::HashMap::new();
             
             // Scan all blocks to count actual blocks per miner
             for h in 1..=chain_height {
@@ -809,6 +1000,8 @@ async fn handle_rpc(state: &RpcState, method: &str, params: &Value) -> Result<Va
                         let miner = block.miner_address;
                         *miner_blocks.entry(miner).or_insert(0) += 1;
                         miner_last_height.insert(miner, h);
+                        let reward = crate::consensus::chain::calculate_block_reward(h as u64);
+                        *miner_rewards.entry(miner).or_insert(0) += reward;
                     }
                 }
             }
@@ -847,9 +1040,8 @@ async fn handle_rpc(state: &RpcState, method: &str, params: &Value) -> Result<Va
 
                 let is_currently_mining = is_mining_active && current_mining_addr.as_ref() == Some(addr);
                 
-                // Calculate total rewards (10 KOT per block, halving every 210000 blocks)
-                // This is an approximation - actual rewards depend on block heights
-                let total_reward_knots = *blocks_count * 10 * 100_000_000; // 10 KOT per block
+                // Calculate total rewards from consensus schedule
+                let total_reward_knots = *miner_rewards.get(addr).unwrap_or(&0);
                 let total_reward_kot = format!("{:.2}", total_reward_knots as f64 / 1e8);
 
                 miners.push(json!({
@@ -1183,6 +1375,9 @@ async fn handle_rpc(state: &RpcState, method: &str, params: &Value) -> Result<Va
                             let _ = p2p_tx.send(crate::net::node::P2pCommand::Broadcast(
                                 crate::net::protocol::NetworkMessage::Blocks(vec![block_bytes])
                             ));
+                            
+                            // Yield to tokio and other tasks (e.g., P2P network, RPC) to avoid node starvation when difficulty is very low
+                            tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
                         }
                     }
 
@@ -1245,9 +1440,71 @@ async fn handle_rpc(state: &RpcState, method: &str, params: &Value) -> Result<Va
 
         "getpeerinfo" => {
             let count = state.connected_peers.load(Ordering::Relaxed);
+            let known = load_known_peers_from_disk(&state.data_dir);
             Ok(json!({
                 "connected": count > 0,
                 "peer_count": count,
+                "known_peers": known.len(),
+                "known_peers_sample": known.into_iter().take(16).collect::<Vec<_>>(),
+            }))
+        }
+
+        "getaddressstats" => {
+            // Cache for 10 seconds to avoid heavy scans under load
+            use std::sync::{Mutex, OnceLock};
+            static CACHE: OnceLock<Mutex<(serde_json::Value, u64)>> = OnceLock::new();
+            let cache = CACHE.get_or_init(|| Mutex::new((json!({}), 0)));
+
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+
+            {
+                let guard = cache.lock().unwrap();
+                if now - guard.1 < 10 && !guard.0.is_null() {
+                    return Ok(guard.0.clone());
+                }
+            }
+
+            let mut total = 0u64;
+            let mut nonzero = 0u64;
+            let mut total_balance = 0u64;
+            if let Ok(accounts) = state.db.iter_accounts() {
+                for (_addr, acc) in accounts {
+                    total += 1;
+                    total_balance = total_balance.saturating_add(acc.balance);
+                    if acc.balance > 0 {
+                        nonzero += 1;
+                    }
+                }
+            }
+
+            let result = json!({
+                "total_accounts": total,
+                "nonzero_accounts": nonzero,
+                "total_balance_knots": total_balance,
+                "total_balance_kot": format!("{:.8}", total_balance as f64 / 1e8),
+            });
+
+            let mut guard = cache.lock().unwrap();
+            *guard = (result.clone(), now);
+            Ok(result)
+        }
+
+        "getnetworkhashrate" => {
+            let chain_height = state.db.get_chain_height().unwrap_or(0);
+            let hashrate = if chain_height > 0 {
+                if let Ok(Some(hash)) = state.db.get_block_hash_by_height(chain_height) {
+                    if let Ok(Some(block)) = state.db.get_block(&hash) {
+                        estimate_network_hashrate_from_target(&block.difficulty_target)
+                    } else { 0 }
+                } else { 0 }
+            } else { 0 };
+
+            Ok(json!({
+                "hashrate": hashrate,
+                "unit": "H/s"
             }))
         }
 
@@ -1396,4 +1653,21 @@ pub fn generate_rpc_auth_token(data_dir: &str) -> Result<String, std::io::Error>
     Ok(token)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::estimate_network_hashrate_from_target;
 
+    #[test]
+    fn test_hashrate_no_overflow_on_max_target() {
+        let target = [0xffu8; 32];
+        let h = estimate_network_hashrate_from_target(&target);
+        assert_eq!(h, 0);
+    }
+
+    #[test]
+    fn test_hashrate_zero_target_is_safe() {
+        let target = [0u8; 32];
+        let h = estimate_network_hashrate_from_target(&target);
+        assert!(h > 0);
+    }
+}
