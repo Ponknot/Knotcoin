@@ -17,8 +17,8 @@ A quantum-resistant blockchain with post-quantum cryptography (Dilithium3), refe
 
 Get the latest release for your platform:
 - macOS (Apple Silicon): `Knotcoin-1.0.3-arm64.dmg` (SHA-256: `c02b56630b6c6fd1769a44d3ba5694ed24399e900fc087e822d1cc158898f703`)
-- Windows (x64): `Knotcoin-1.0.3-Windows-x64.zip`
-- Linux (x64): `Knotcoin-1.0.3-Linux-x64.tar.gz`
+- Windows (x64): `Knotcoin-1.0.3-Windows-x64.zip` (SHA-256: `c20001275be6f44dd17846e33309d531a374ce898fa7db37079842b8bdc739f8`)
+- Linux (x64): `Knotcoin-1.0.3-Linux-x64.tar.gz` (SHA-256: `332f0e6f17e5f0a31fe3f8480f1c14870550773307f6de7b1679fc91000ea130`)
 
 ### Installation
 
